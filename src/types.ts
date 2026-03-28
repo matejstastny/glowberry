@@ -85,4 +85,12 @@ export type Page =
     | { kind: "home" }
     | { kind: "browse" }
     | { kind: "instance"; id: string }
-    | { kind: "settings" };
+    | { kind: "settings" }
+    | { kind: "login" };
+
+// Auth types
+
+export interface MinecraftProfile {
+    id: string;
+    name: string;
+}

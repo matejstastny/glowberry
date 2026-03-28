@@ -1,11 +1,27 @@
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+use crate::auth::microsoft::{AuthTokens, MinecraftProfile};
 use crate::instance::manager::InstanceManager;
+
+pub struct AuthState {
+    pub profile: Option<MinecraftProfile>,
+    pub tokens: Option<AuthTokens>,
+}
+
+impl AuthState {
+    pub fn new() -> Self {
+        Self {
+            profile: None,
+            tokens: None,
+        }
+    }
+}
 
 pub struct AppState {
     pub http_client: reqwest::Client,
     pub instances: Mutex<InstanceManager>,
+    pub auth: Mutex<AuthState>,
     pub data_dir: PathBuf,
 }
 
@@ -21,6 +37,7 @@ impl AppState {
                 .build()
                 .expect("Failed to create HTTP client"),
             instances: Mutex::new(InstanceManager::new(data_dir.join("instances"))),
+            auth: Mutex::new(AuthState::new()),
             data_dir,
         }
     }

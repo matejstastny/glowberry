@@ -22,6 +22,10 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(app_state)
         .invoke_handler(tauri::generate_handler![
+            commands::auth::start_login,
+            commands::auth::get_auth_status,
+            commands::auth::try_restore_session,
+            commands::auth::logout,
             commands::instances::list_instances,
             commands::instances::get_instance,
             commands::instances::delete_instance,
