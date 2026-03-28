@@ -33,7 +33,7 @@ A simple, fast Minecraft launcher for managing modpacks with a streamlined featu
 ### Setup
 
 ```bash
-git clone https://github.com/your-username/lantern.git
+git clone https://github.com/matejstastny/lantern.git
 cd lantern
 npm install
 ```

@@ -1,50 +1,42 @@
 import { useEffect } from "react";
-import InstanceCard from "../components/InstanceCard";
+import ModpackRow from "../components/ModpackRow";
 import { useInstances } from "../hooks/useInstances";
-import type { Page } from "../types";
 import styles from "./Home.module.css";
 
 interface HomeProps {
-    navigate: (page: Page) => void;
+    onPlay: (id: string) => void;
 }
 
-export default function Home({ navigate }: HomeProps) {
+export default function Home({ onPlay }: HomeProps) {
     const { instances, loading, refresh } = useInstances();
 
     useEffect(() => {
         refresh();
     }, [refresh]);
 
+    if (loading) {
+        return (
+            <div className={styles.home}>
+                <div className={styles.center}>Loading...</div>
+            </div>
+        );
+    }
+
+    if (instances.length === 0) {
+        return (
+            <div className={styles.home}>
+                <div className={styles.center}>No modpacks yet</div>
+            </div>
+        );
+    }
+
     return (
         <div className={styles.home}>
-            <div className={styles.header}>
-                <h1>My Packs</h1>
-                <button className={styles.addBtn} onClick={() => navigate({ kind: "browse" })}>
-                    + Add Pack
-                </button>
+            <div className={styles.list}>
+                {instances.map((instance, i) => (
+                    <ModpackRow key={instance.id} instance={instance} onPlay={onPlay} index={i} />
+                ))}
             </div>
-
-            {loading ? (
-                <div className={styles.loading}>Loading...</div>
-            ) : instances.length === 0 ? (
-                <div className={styles.empty}>
-                    <div className={styles.emptyIcon}>{"\u{1F3EE}"}</div>
-                    <h2>Welcome to Lantern!</h2>
-                    <p>You don't have any packs yet. Browse modpacks to get started.</p>
-                    <button
-                        className={styles.browseBtn}
-                        onClick={() => navigate({ kind: "browse" })}
-                    >
-                        Browse Modpacks
-                    </button>
-                </div>
-            ) : (
-                <div className={styles.list}>
-                    {instances.map((instance) => (
-                        <InstanceCard key={instance.id} instance={instance} navigate={navigate} />
-                    ))}
-                </div>
-            )}
         </div>
     );
 }

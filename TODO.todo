@@ -1,8 +1,3 @@
-PRIMARY: UI Redesign:
-    - Rebuild the frontend with Claude using the design skill with specs
-
----
-
 Authentication:
     - Microsoft OAuth2 device code flow (show code + link, poll for completion)
     - Xbox Live token exchange (MSA -> XBL -> XSTS -> Minecraft)
