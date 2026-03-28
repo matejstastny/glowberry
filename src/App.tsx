@@ -10,7 +10,9 @@ import type { Page } from "@/types";
 
 export default function App() {
     const [page, setPage] = useState<Page>({ kind: "home" });
-    const [isOnline, setIsOnline] = useState(true);
+    const [isOnline, setIsOnline] = useState(
+        () => localStorage.getItem("lantern_online_mode") !== "offline",
+    );
     const [offlineUsername, setOfflineUsername] = useState<string | null>(
         localStorage.getItem("lantern_offline_username"),
     );
@@ -20,7 +22,11 @@ export default function App() {
     const { profile, setProfile, handleLogout } = useAuth();
 
     function handleToggleOnline() {
-        setIsOnline((prev) => !prev);
+        setIsOnline((prev) => {
+            const next = !prev;
+            localStorage.setItem("lantern_online_mode", next ? "online" : "offline");
+            return next;
+        });
     }
 
     function handlePlay(instanceId: string) {
