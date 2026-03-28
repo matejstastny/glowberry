@@ -1,10 +1,12 @@
 import { useState } from "react";
-import NavBar from "./components/NavBar";
-import OfflinePopup from "./components/OfflinePopup";
-import Home from "./pages/Home";
-import Browse from "./pages/Browse";
-import Settings from "./pages/Settings";
-import type { Page } from "./types";
+import NavBar from "@/components/NavBar";
+import OfflinePopup from "@/components/OfflinePopup";
+import Home from "@/pages/Home";
+import Browse from "@/pages/Browse";
+import Settings from "@/pages/Settings";
+import Login from "@/pages/Login";
+import { useAuth } from "@/hooks/useAuth";
+import type { Page } from "@/types";
 
 export default function App() {
     const [page, setPage] = useState<Page>({ kind: "home" });
@@ -14,6 +16,8 @@ export default function App() {
     );
     const [showOfflinePopup, setShowOfflinePopup] = useState(false);
     const [pendingLaunchId, setPendingLaunchId] = useState<string | null>(null);
+
+    const { profile, setProfile, handleLogout } = useAuth();
 
     function handleToggleOnline() {
         setIsOnline((prev) => !prev);
@@ -39,6 +43,13 @@ export default function App() {
         }
     }
 
+    function handleLogoutAndNavigate() {
+        handleLogout();
+        if (page.kind === "login") {
+            setPage({ kind: "home" });
+        }
+    }
+
     return (
         <>
             <NavBar
@@ -46,11 +57,22 @@ export default function App() {
                 navigate={setPage}
                 isOnline={isOnline}
                 onToggleOnline={handleToggleOnline}
+                profile={profile}
+                onLogout={handleLogoutAndNavigate}
             />
             <main className="main-content">
                 {page.kind === "home" && <Home onPlay={handlePlay} />}
                 {page.kind === "browse" && <Browse navigate={setPage} />}
                 {page.kind === "settings" && <Settings navigate={setPage} />}
+                {page.kind === "login" && (
+                    <Login
+                        navigate={setPage}
+                        onLoginComplete={(p) => {
+                            setProfile(p);
+                            setPage({ kind: "home" });
+                        }}
+                    />
+                )}
             </main>
             {showOfflinePopup && (
                 <OfflinePopup

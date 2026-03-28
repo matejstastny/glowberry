@@ -1,0 +1,204 @@
+.login {
+    flex: 1;
+    padding: 12px 28px 24px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.back {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0;
+    margin-bottom: 16px;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: color var(--transition);
+}
+
+.back:hover {
+    color: var(--text-primary);
+}
+
+.container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Idle / Welcome state */
+.welcome,
+.codeFlow,
+.success {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    max-width: 340px;
+    animation: fadeInUp 0.3s ease;
+}
+
+.center {
+    color: var(--text-muted);
+}
+
+.icon {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-lg);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+}
+
+.title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+}
+
+.subtitle {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 24px;
+    line-height: 1.5;
+}
+
+.signInBtn {
+    padding: 10px 32px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background var(--transition);
+}
+
+.signInBtn:hover {
+    background: var(--accent-hover);
+}
+
+/* Code flow */
+.codeTitle {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+}
+
+.code {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    color: var(--text-primary);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 14px 28px;
+    cursor: pointer;
+    transition: all var(--transition);
+    font-family: inherit;
+    user-select: all;
+}
+
+.code:hover {
+    border-color: var(--accent);
+    box-shadow: var(--accent-glow);
+}
+
+.codeHint {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 8px;
+    margin-bottom: 24px;
+}
+
+.instructions {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    line-height: 1.5;
+}
+
+.linkBtn {
+    padding: 8px 20px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all var(--transition);
+}
+
+.linkBtn:hover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+}
+
+.waiting {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 28px;
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+/* Success state */
+.checkCircle {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--online-soft);
+    color: var(--online);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+}
+
+.successTitle {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+}
+
+/* Error state */
+.errorIcon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: rgba(220, 80, 80, 0.1);
+    color: #dc5050;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 16px;
+}
+
+.errorTitle {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+}
