@@ -126,3 +126,17 @@
     color: var(--accent);
     background: var(--accent-soft);
 }
+
+.playBtnRunning {
+    background: var(--online);
+}
+
+.playBtnRunning:hover {
+    background: var(--online);
+    box-shadow: none;
+}
+
+.running {
+    color: var(--online);
+    font-weight: 500;
+}

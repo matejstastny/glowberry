@@ -1,5 +1,7 @@
 import { useCallback, useRef, useState } from "react";
-import { searchModpacks } from "../api/modpacks";
+import { searchModpacks, listVersions } from "../api/modpacks";
+import { installModpack } from "../api/install";
+import { useInstallProgress } from "../hooks/useInstallProgress";
 import {
     SearchIcon,
     DownloadIcon,
@@ -13,15 +15,17 @@ import styles from "./Browse.module.css";
 
 interface BrowseProps {
     navigate: (page: Page) => void;
+    onInstalled?: () => void;
 }
 
-export default function Browse({ navigate }: BrowseProps) {
+export default function Browse({ navigate, onInstalled }: BrowseProps) {
     const [query, setQuery] = useState("");
     const [results, setResults] = useState<SearchHit[]>([]);
     const [loading, setLoading] = useState(false);
     const [searched, setSearched] = useState(false);
-    const [installing, setInstalling] = useState<Record<string, "loading" | "done">>({});
+    const [installing, setInstalling] = useState<Record<string, "loading" | "done" | "error">>({});
     const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
+    const progress = useInstallProgress();
 
     const doSearch = useCallback(async (q: string) => {
         if (q.trim().length === 0) return;
@@ -48,12 +52,35 @@ export default function Browse({ navigate }: BrowseProps) {
         debounceRef.current = setTimeout(() => doSearch(value), 300);
     }
 
-    function handleInstall(projectId: string) {
+    async function handleInstall(projectId: string) {
         setInstalling((prev) => ({ ...prev, [projectId]: "loading" }));
-        // TODO: invoke Tauri install command
-        setTimeout(() => {
+        try {
+            // Get the latest version for this modpack
+            const versions = await listVersions(projectId);
+            if (versions.length === 0) {
+                console.error("No versions available");
+                setInstalling((prev) => ({ ...prev, [projectId]: "error" }));
+                return;
+            }
+            const latest = versions[0];
+
+            await installModpack(projectId, latest.id);
             setInstalling((prev) => ({ ...prev, [projectId]: "done" }));
-        }, 2000);
+            onInstalled?.();
+        } catch (e) {
+            console.error("Install failed:", e);
+            setInstalling((prev) => ({ ...prev, [projectId]: "error" }));
+        }
+    }
+
+    function installStatus(projectId: string): string | null {
+        const p = progress[projectId];
+        if (!p) return null;
+        if (p.stage === "complete" || p.stage === "failed") return null;
+        if (p.stage === "installing_mods" && p.total > 0) {
+            return `${p.current}/${p.total}`;
+        }
+        return p.message;
     }
 
     return (
@@ -86,6 +113,7 @@ export default function Browse({ navigate }: BrowseProps) {
                     <div className={styles.resultsList}>
                         {results.map((hit, i) => {
                             const state = installing[hit.project_id];
+                            const statusText = installStatus(hit.project_id);
                             return (
                                 <div
                                     key={hit.project_id}
@@ -108,10 +136,13 @@ export default function Browse({ navigate }: BrowseProps) {
                                         <div className={styles.resultAuthor}>{hit.author}</div>
                                         <div className={styles.resultDesc}>{hit.description}</div>
                                     </div>
+                                    {statusText && state === "loading" && (
+                                        <span className={styles.progressText}>{statusText}</span>
+                                    )}
                                     <button
-                                        className={`${styles.installBtn} ${state === "done" ? styles.installed : ""}`}
+                                        className={`${styles.installBtn} ${state === "done" ? styles.installed : ""} ${state === "error" ? styles.error : ""}`}
                                         onClick={() => handleInstall(hit.project_id)}
-                                        disabled={!!state}
+                                        disabled={state === "loading" || state === "done"}
                                     >
                                         {state === "loading" ? (
                                             <SpinnerIcon size={14} />

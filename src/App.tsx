@@ -6,6 +6,8 @@ import Browse from "@/pages/Browse";
 import Settings from "@/pages/Settings";
 import Login from "@/pages/Login";
 import { useAuth } from "@/hooks/useAuth";
+import { useGameStatus } from "@/hooks/useGameStatus";
+import { launchInstance } from "@/api/launch";
 import type { Page } from "@/types";
 
 export default function App() {
@@ -18,8 +20,11 @@ export default function App() {
     );
     const [showOfflinePopup, setShowOfflinePopup] = useState(false);
     const [pendingLaunchId, setPendingLaunchId] = useState<string | null>(null);
+    const [launchError, setLaunchError] = useState<string | null>(null);
+    const [refreshKey, setRefreshKey] = useState(0);
 
     const { profile, setProfile, handleLogout } = useAuth();
+    const runningInstance = useGameStatus();
 
     function handleToggleOnline() {
         setIsOnline((prev) => {
@@ -29,14 +34,27 @@ export default function App() {
         });
     }
 
+    async function doLaunch(instanceId: string, username?: string) {
+        setLaunchError(null);
+        try {
+            await launchInstance(instanceId, isOnline, username ?? undefined);
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
+            console.error("Launch failed:", msg);
+            setLaunchError(msg);
+        }
+    }
+
     function handlePlay(instanceId: string) {
+        if (runningInstance) return; // already running
+
         if (!isOnline && !offlineUsername) {
             setPendingLaunchId(instanceId);
             setShowOfflinePopup(true);
             return;
         }
-        // TODO: invoke Tauri launch command
-        console.log("Launch:", instanceId, isOnline ? "online" : "offline");
+
+        doLaunch(instanceId, isOnline ? undefined : offlineUsername ?? undefined);
     }
 
     function handleOfflineSubmit(username: string) {
@@ -44,7 +62,7 @@ export default function App() {
         setOfflineUsername(username);
         setShowOfflinePopup(false);
         if (pendingLaunchId) {
-            console.log("Launch:", pendingLaunchId, "offline as", username);
+            doLaunch(pendingLaunchId, username);
             setPendingLaunchId(null);
         }
     }
@@ -67,8 +85,20 @@ export default function App() {
                 onLogout={handleLogoutAndNavigate}
             />
             <main className="main-content">
-                {page.kind === "home" && <Home onPlay={handlePlay} />}
-                {page.kind === "browse" && <Browse navigate={setPage} />}
+                {page.kind === "home" && (
+                    <Home
+                        onPlay={handlePlay}
+                        runningInstance={runningInstance}
+                        launchError={launchError}
+                        refreshKey={refreshKey}
+                    />
+                )}
+                {page.kind === "browse" && (
+                    <Browse
+                        navigate={setPage}
+                        onInstalled={() => setRefreshKey((k) => k + 1)}
+                    />
+                )}
                 {page.kind === "settings" && <Settings navigate={setPage} />}
                 {page.kind === "login" && (
                     <Login

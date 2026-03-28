@@ -1,4 +1,3 @@
-import { useState } from "react";
 import type { Instance } from "../types";
 import { PlayIcon, RefreshIcon, SettingsIcon, SpinnerIcon, PackageIcon } from "./Icons";
 import styles from "./ModpackRow.module.css";
@@ -10,6 +9,7 @@ interface ModpackRowProps {
     onSettings?: (id: string) => void;
     updateAvailable?: boolean;
     index?: number;
+    isRunning?: boolean;
 }
 
 const loaderLabel: Record<string, string> = {
@@ -27,14 +27,11 @@ export default function ModpackRow({
     onSettings,
     updateAvailable = false,
     index = 0,
+    isRunning = false,
 }: ModpackRowProps) {
-    const [launching, setLaunching] = useState(false);
-
     function handlePlay(e: React.MouseEvent) {
         e.stopPropagation();
-        setLaunching(true);
-        onPlay(instance.id);
-        setTimeout(() => setLaunching(false), 1500);
+        if (!isRunning) onPlay(instance.id);
     }
 
     const versionText = instance.modpack?.version_name || instance.minecraft_version;
@@ -62,17 +59,23 @@ export default function ModpackRow({
                             <span>{authorText}</span>
                         </>
                     )}
+                    {isRunning && (
+                        <>
+                            <span className={styles.dot}>&middot;</span>
+                            <span className={styles.running}>Running</span>
+                        </>
+                    )}
                 </div>
             </div>
 
             <div className={styles.actions}>
                 <button
-                    className={styles.playBtn}
+                    className={`${styles.playBtn} ${isRunning ? styles.playBtnRunning : ""}`}
                     onClick={handlePlay}
-                    disabled={launching}
-                    title="Play"
+                    disabled={isRunning}
+                    title={isRunning ? "Running" : "Play"}
                 >
-                    {launching ? <SpinnerIcon size={16} /> : <PlayIcon size={16} />}
+                    {isRunning ? <SpinnerIcon size={16} /> : <PlayIcon size={16} />}
                 </button>
                 <button
                     className={`${styles.actionBtn} ${updateAvailable ? styles.updateHighlight : ""}`}
