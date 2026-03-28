@@ -2,12 +2,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::LanternError;
 
-// Legacy Microsoft Live OAuth endpoints — compatible with the Minecraft launcher client ID.
-// The Azure AD v2.0 endpoints (login.microsoftonline.com) reject this client ID.
-const CLIENT_ID: &str = "00000000402b5328";
-const MSA_DEVICE_CODE_URL: &str = "https://login.live.com/oauth20_devicecode.srf";
-const MSA_TOKEN_URL: &str = "https://login.live.com/oauth20_token.srf";
-const MSA_SCOPE: &str = "service::user.auth.xboxlive.com::MBI_SSL";
+// Azure AD application — register your own at portal.azure.com
+// (Personal Microsoft accounts only, "Allow public client flows" enabled)
+const CLIENT_ID: &str = "REPLACE_WITH_YOUR_AZURE_CLIENT_ID";
+const MSA_DEVICE_CODE_URL: &str =
+    "https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode";
+const MSA_TOKEN_URL: &str = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token";
+const MSA_SCOPE: &str = "XboxLive.signin offline_access";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -189,12 +190,12 @@ async fn exchange_xbl_token(
     client: &reqwest::Client,
     msa_access_token: &str,
 ) -> Result<(String, String), LanternError> {
-    // Legacy MSA tokens use the raw token as RpsTicket (no "d=" prefix).
+    // Azure AD v2.0 tokens require the "d=" prefix on the RpsTicket.
     let body = serde_json::json!({
         "Properties": {
             "AuthMethod": "RPS",
             "SiteName": "user.auth.xboxlive.com",
-            "RpsTicket": msa_access_token
+            "RpsTicket": format!("d={msa_access_token}")
         },
         "RelyingParty": "http://auth.xboxlive.com",
         "TokenType": "JWT"
