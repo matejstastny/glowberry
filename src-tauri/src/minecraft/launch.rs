@@ -11,7 +11,11 @@ use crate::error::LanternError;
 use crate::instance::manager::{Instance, ModLoader};
 use crate::state::AppState;
 
-use super::version::*;
+use super::version::{
+    fetch_asset_index, fetch_version_json, fetch_version_manifest, filter_libraries,
+    load_version_json, maven_to_path, merge_version_json, resolve_game_arguments,
+    resolve_jvm_arguments, AssetIndexRef, VersionJson,
+};
 
 #[derive(Clone, Serialize)]
 struct GameStarted {
@@ -157,24 +161,27 @@ pub async fn launch_instance(
     subs.insert("classpath_separator", classpath_separator().into());
     subs.insert("library_directory", data_dir.join("libraries").to_string_lossy().to_string());
 
-    let args = resolve_arguments(&version_json, &subs);
+    let jvm_args = resolve_jvm_arguments(&version_json, &subs);
+    let game_args = resolve_game_arguments(&version_json, &subs);
 
     // 9. Build memory args
-    let mut jvm_extra = vec![
+    let mut memory_args = vec![
         format!("-Xmx{}m", instance.memory_mb),
         format!("-Xms{}m", instance.memory_mb / 2),
     ];
-    jvm_extra.extend(instance.jvm_args.clone());
+    memory_args.extend(instance.jvm_args.clone());
 
     // 10. Spawn process
+    // Command: java [memory_args] [jvm_args] MainClass [game_args]
     eprintln!("[launch] Starting Minecraft...");
     eprintln!("[launch] Java: {}", java.path.display());
     eprintln!("[launch] Main class: {}", version_json.main_class);
 
     let mut cmd = Command::new(&java.path);
-    cmd.args(&jvm_extra);
-    cmd.args(&args);
+    cmd.args(&memory_args);
+    cmd.args(&jvm_args);
     cmd.arg(&version_json.main_class);
+    cmd.args(&game_args);
     cmd.current_dir(&minecraft_dir);
     cmd.stdout(std::process::Stdio::piped());
     cmd.stderr(std::process::Stdio::piped());

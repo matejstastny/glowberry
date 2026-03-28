@@ -299,24 +299,37 @@ fn argument_allowed(rules: &[Rule]) -> bool {
     library_allowed(rules) // same logic
 }
 
-/// Resolve the full list of JVM + game arguments from a version JSON.
-pub fn resolve_arguments(
+/// Resolve JVM arguments from a version JSON.
+pub fn resolve_jvm_arguments(
     version: &VersionJson,
     subs: &HashMap<&str, String>,
 ) -> Vec<String> {
     let mut args = Vec::new();
 
     if let Some(ref arguments) = version.arguments {
-        // Modern format (1.13+)
         for val in &arguments.jvm {
             collect_argument_value(val, subs, &mut args);
         }
+    } else {
+        // Legacy format (pre-1.13): use default JVM args
+        args.extend(default_jvm_args(subs));
+    }
+
+    args
+}
+
+/// Resolve game arguments from a version JSON.
+pub fn resolve_game_arguments(
+    version: &VersionJson,
+    subs: &HashMap<&str, String>,
+) -> Vec<String> {
+    let mut args = Vec::new();
+
+    if let Some(ref arguments) = version.arguments {
         for val in &arguments.game {
             collect_argument_value(val, subs, &mut args);
         }
     } else if let Some(ref mc_args) = version.minecraft_arguments {
-        // Legacy format (pre-1.13): default JVM args + split game args
-        args.extend(default_jvm_args(subs));
         for token in mc_args.split_whitespace() {
             args.push(substitute(token, subs));
         }
