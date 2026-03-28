@@ -74,7 +74,8 @@ pub fn build_auth_url() -> String {
         "{MSA_AUTHORIZE_URL}?client_id={CLIENT_ID}\
          &response_type=code\
          &redirect_uri={REDIRECT_URI}\
-         &scope={MSA_SCOPE}"
+         &scope={MSA_SCOPE}\
+         &prompt=select_account"
     )
 }
 
