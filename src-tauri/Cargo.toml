@@ -29,6 +29,8 @@ chrono = { version = "0.4", features = ["serde"] }
 futures = "0.3"
 url = "2"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+flate2 = "1"
+tar = "0.4"
 
 [profile.release]
 strip = true

@@ -35,6 +35,8 @@ pub fn run() {
             commands::file_locks::list_instance_files,
             commands::file_locks::set_file_lock,
             commands::file_locks::get_locked_files,
+            commands::install::install_modpack,
+            commands::launch::launch_instance,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Lantern");

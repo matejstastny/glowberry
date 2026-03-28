@@ -30,6 +30,14 @@ impl AppState {
         std::fs::create_dir_all(&data_dir).expect("Failed to create data directory");
         std::fs::create_dir_all(data_dir.join("instances"))
             .expect("Failed to create instances dir");
+        std::fs::create_dir_all(data_dir.join("versions"))
+            .expect("Failed to create versions dir");
+        std::fs::create_dir_all(data_dir.join("assets"))
+            .expect("Failed to create assets dir");
+        std::fs::create_dir_all(data_dir.join("libraries"))
+            .expect("Failed to create libraries dir");
+        std::fs::create_dir_all(data_dir.join("java"))
+            .expect("Failed to create java dir");
 
         Self {
             http_client: reqwest::Client::builder()
