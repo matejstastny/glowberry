@@ -1,13 +1,13 @@
-Authentication:
-    - Microsoft OAuth2 device code flow (show code + link, poll for completion)
-    - Xbox Live token exchange (MSA -> XBL -> XSTS -> Minecraft)
-    - Store tokens in OS keychain (keyring crate)
-    - Token refresh on app startup
-    - Login page UI (friendly "Sign in with Microsoft" flow)
-    - Profile display in sidebar (username + avatar)
-    - Logout functionality
+✔ Authentication: @done(26-03-27 20:46)
+    ✔ Microsoft OAuth2 device code flow (show code + link, poll for completion) @done(26-03-27 20:46)
+    ✔ Xbox Live token exchange (MSA -> XBL -> XSTS -> Minecraft) @done(26-03-27 20:46)
+    ✔ Store tokens in OS keychain (keyring crate) @done(26-03-27 20:46)
+    ✔ Token refresh on app startup @done(26-03-27 20:46)
+    ✔ Login page UI (friendly "Sign in with Microsoft" flow) @done(26-03-27 20:46)
+    ✔ Profile display in sidebar (username + avatar) @done(26-03-27 20:46)
+    ✔ Logout functionality @done(26-03-27 20:46)
 
-Vanilla Minecraft Launch:
+CURRENT: Vanilla Minecraft Launch:
     - Fetch version manifest from piston-meta.mojang.com
     - Download version JSON, client JAR, libraries, assets
     - OS-conditional library filtering (macOS/Windows rules)
@@ -17,7 +17,7 @@ Vanilla Minecraft Launch:
     - Spawn Minecraft process and capture stdout/stderr
     - Stream game logs to frontend
 
-Modpack Installation:
+CURRENT: Modpack Installation:
     - Download .mrpack from Modrinth version files
     - Parse modrinth.index.json from ZIP
     - Read dependencies (MC version, loader type + version)
