@@ -224,7 +224,7 @@ async fn get_minecraft_token(
     });
 
     let resp = client
-        .post("https://api.minecraftservices.com/authentication/loginWithXbox")
+        .post("https://api.minecraftservices.com/authentication/login_with_xbox")
         .json(&body)
         .send()
         .await?;
