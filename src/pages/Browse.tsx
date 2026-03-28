@@ -1,20 +1,26 @@
 import { useCallback, useRef, useState } from "react";
 import { searchModpacks } from "../api/modpacks";
-import type { SearchHit } from "../types";
+import {
+    SearchIcon,
+    DownloadIcon,
+    SpinnerIcon,
+    CheckIcon,
+    PackageIcon,
+    ArrowLeftIcon,
+} from "../components/Icons";
+import type { SearchHit, Page } from "../types";
 import styles from "./Browse.module.css";
 
-function formatDownloads(n: number): string {
-    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-    return String(n);
+interface BrowseProps {
+    navigate: (page: Page) => void;
 }
 
-export default function Browse() {
+export default function Browse({ navigate }: BrowseProps) {
     const [query, setQuery] = useState("");
     const [results, setResults] = useState<SearchHit[]>([]);
     const [loading, setLoading] = useState(false);
     const [searched, setSearched] = useState(false);
-    const [totalHits, setTotalHits] = useState(0);
+    const [installing, setInstalling] = useState<Record<string, "loading" | "done">>({});
     const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
 
     const doSearch = useCallback(async (q: string) => {
@@ -23,7 +29,6 @@ export default function Browse() {
         try {
             const res = await searchModpacks(q.trim(), 20, 0);
             setResults(res.hits);
-            setTotalHits(res.total_hits);
             setSearched(true);
         } catch (e) {
             console.error("Search failed:", e);
@@ -43,58 +48,87 @@ export default function Browse() {
         debounceRef.current = setTimeout(() => doSearch(value), 300);
     }
 
+    function handleInstall(projectId: string) {
+        setInstalling((prev) => ({ ...prev, [projectId]: "loading" }));
+        // TODO: invoke Tauri install command
+        setTimeout(() => {
+            setInstalling((prev) => ({ ...prev, [projectId]: "done" }));
+        }, 2000);
+    }
+
     return (
         <div className={styles.browse}>
-            <div className={styles.header}>
-                <h1>Browse Modpacks</h1>
-            </div>
+            <button className={styles.back} onClick={() => navigate({ kind: "home" })}>
+                <ArrowLeftIcon size={16} />
+                <span>Back</span>
+            </button>
 
-            <div className={styles.searchBar}>
+            <div className={styles.searchWrap}>
+                <SearchIcon size={16} className={styles.searchIcon} />
                 <input
+                    className={styles.searchInput}
                     type="text"
-                    placeholder="Search modpacks on Modrinth..."
+                    placeholder="Search modpacks..."
                     value={query}
                     onChange={(e) => onInput(e.target.value)}
+                    autoFocus
                 />
             </div>
 
-            {loading ? (
-                <div className={styles.status}>Searching...</div>
-            ) : searched && results.length === 0 ? (
-                <div className={styles.status}>No modpacks found for &ldquo;{query}&rdquo;</div>
-            ) : results.length > 0 ? (
-                <>
-                    <div className={styles.resultsInfo}>{totalHits} modpacks found</div>
-                    <div className={styles.resultsGrid}>
-                        {results.map((hit) => (
-                            <div key={hit.project_id} className={styles.modpackCard}>
-                                <div className={styles.modpackIcon}>
-                                    {hit.icon_url ? (
-                                        <img src={hit.icon_url} alt="" />
-                                    ) : (
-                                        <div className={styles.iconPlaceholder}>{"\u{1F4E6}"}</div>
-                                    )}
-                                </div>
-                                <div className={styles.modpackInfo}>
-                                    <div className={styles.modpackName}>{hit.title}</div>
-                                    <div className={styles.modpackAuthor}>by {hit.author}</div>
-                                    <div className={styles.modpackDesc}>{hit.description}</div>
-                                </div>
-                                <div className={styles.modpackStats}>
-                                    <span className={styles.downloads}>
-                                        {formatDownloads(hit.downloads)} downloads
-                                    </span>
-                                </div>
-                            </div>
-                        ))}
+            <div className={styles.content}>
+                {loading ? (
+                    <div className={styles.status}>
+                        <SpinnerIcon size={18} />
                     </div>
-                </>
-            ) : (
-                <div className={styles.empty}>
-                    <div className={styles.emptyIcon}>{"\u{1F50D}"}</div>
-                    <p>Search for modpacks on Modrinth to install them.</p>
-                </div>
-            )}
+                ) : searched && results.length === 0 ? (
+                    <div className={styles.status}>No results</div>
+                ) : results.length > 0 ? (
+                    <div className={styles.resultsList}>
+                        {results.map((hit, i) => {
+                            const state = installing[hit.project_id];
+                            return (
+                                <div
+                                    key={hit.project_id}
+                                    className={styles.resultRow}
+                                    style={{
+                                        animationDelay: `${i * 25}ms`,
+                                    }}
+                                >
+                                    <div className={styles.resultIcon}>
+                                        {hit.icon_url ? (
+                                            <img src={hit.icon_url} alt="" />
+                                        ) : (
+                                            <div className={styles.resultIconPlaceholder}>
+                                                <PackageIcon size={20} />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className={styles.resultInfo}>
+                                        <div className={styles.resultName}>{hit.title}</div>
+                                        <div className={styles.resultAuthor}>{hit.author}</div>
+                                        <div className={styles.resultDesc}>{hit.description}</div>
+                                    </div>
+                                    <button
+                                        className={`${styles.installBtn} ${state === "done" ? styles.installed : ""}`}
+                                        onClick={() => handleInstall(hit.project_id)}
+                                        disabled={!!state}
+                                    >
+                                        {state === "loading" ? (
+                                            <SpinnerIcon size={14} />
+                                        ) : state === "done" ? (
+                                            <CheckIcon size={14} />
+                                        ) : (
+                                            <DownloadIcon size={14} />
+                                        )}
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <div className={styles.status}>Search for modpacks to install</div>
+                )}
+            </div>
         </div>
     );
 }

@@ -3,6 +3,10 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./styles.css";
 
+if (navigator.platform.startsWith("Mac")) {
+    document.documentElement.classList.add("macos");
+}
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
         <App />
