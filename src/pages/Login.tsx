@@ -44,17 +44,23 @@ export default function Login({ navigate, onLoginComplete }: LoginProps) {
                         setTimeout(() => onLoginComplete(result.profile), 1200);
                     }
                 } catch (err) {
+                    console.error("check_login_status failed:", err);
                     if (pollRef.current) clearInterval(pollRef.current);
                     pollRef.current = null;
                     const msg =
                         err && typeof err === "object" && "message" in err
                             ? (err as { message: string }).message
-                            : "Login failed";
+                            : String(err);
                     setState({ step: "error", message: msg });
                 }
             }, 5000);
-        } catch {
-            setState({ step: "error", message: "Could not start login" });
+        } catch (err) {
+            console.error("start_login failed:", err);
+            const msg =
+                err && typeof err === "object" && "message" in err
+                    ? (err as { message: string }).message
+                    : String(err);
+            setState({ step: "error", message: msg });
         }
     }
 

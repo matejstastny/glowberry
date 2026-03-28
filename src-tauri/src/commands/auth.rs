@@ -16,7 +16,12 @@ pub struct DeviceCodeInfo {
 /// Returns the code the user needs to enter at the verification URL.
 #[tauri::command]
 pub async fn start_login(state: State<'_, AppState>) -> Result<DeviceCodeInfo, LanternError> {
-    let resp = microsoft::request_device_code(&state.http_client).await?;
+    eprintln!("[auth] starting device code request...");
+    let resp = microsoft::request_device_code(&state.http_client).await.map_err(|e| {
+        eprintln!("[auth] device code request failed: {e}");
+        e
+    })?;
+    eprintln!("[auth] got device code: {}", resp.user_code);
 
     let info = DeviceCodeInfo {
         user_code: resp.user_code.clone(),
@@ -47,11 +52,19 @@ pub async fn check_login_status(
     let device_code = device_code
         .ok_or_else(|| LanternError::Auth("No login flow in progress".into()))?;
 
-    let msa_result = microsoft::poll_for_msa_token(&state.http_client, &device_code).await?;
+    let msa_result = microsoft::poll_for_msa_token(&state.http_client, &device_code)
+        .await
+        .map_err(|e| {
+            eprintln!("[auth] MSA poll error: {e}");
+            e
+        })?;
 
     let msa_tokens = match msa_result {
         None => return Ok(LoginPollResult::Pending),
-        Some(tokens) => tokens,
+        Some(tokens) => {
+            eprintln!("[auth] MSA token received, starting token exchange...");
+            tokens
+        }
     };
 
     // Full exchange: MSA → XBL → XSTS → Minecraft
@@ -60,7 +73,12 @@ pub async fn check_login_status(
         &msa_tokens.access_token,
         &msa_tokens.refresh_token,
     )
-    .await?;
+    .await
+    .map_err(|e| {
+        eprintln!("[auth] token exchange failed: {e}");
+        e
+    })?;
+    eprintln!("[auth] login complete: {}", profile.name);
 
     // Save refresh token to OS keychain
     keychain::save_refresh_token(&auth_tokens.msa_refresh_token)?;

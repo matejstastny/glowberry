@@ -2,9 +2,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::LanternError;
 
-// Microsoft OAuth client ID (official Minecraft launcher)
+// Legacy Microsoft Live OAuth endpoints — compatible with the Minecraft launcher client ID.
+// The Azure AD v2.0 endpoints (login.microsoftonline.com) reject this client ID.
 const CLIENT_ID: &str = "00000000402b5328";
-const MSA_TOKEN_URL: &str = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token";
+const MSA_DEVICE_CODE_URL: &str = "https://login.live.com/oauth20_devicecode.srf";
+const MSA_TOKEN_URL: &str = "https://login.live.com/oauth20_token.srf";
+const MSA_SCOPE: &str = "service::user.auth.xboxlive.com::MBI_SSL";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -54,9 +57,7 @@ pub enum LoginPollResult {
     #[serde(rename = "pending")]
     Pending,
     #[serde(rename = "complete")]
-    Complete {
-        profile: MinecraftProfile,
-    },
+    Complete { profile: MinecraftProfile },
 }
 
 // ── Xbox / Minecraft token exchange internal types ─────────────────────
@@ -102,17 +103,22 @@ pub async fn request_device_code(
     client: &reqwest::Client,
 ) -> Result<DeviceCodeResponse, LanternError> {
     let resp = client
-        .post("https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode")
-        .form(&[
-            ("client_id", CLIENT_ID),
-            ("scope", "XboxLive.signin offline_access"),
-        ])
+        .post(MSA_DEVICE_CODE_URL)
+        .form(&[("client_id", CLIENT_ID), ("scope", MSA_SCOPE)])
         .send()
-        .await?
-        .error_for_status()?
-        .json::<DeviceCodeResponse>()
         .await?;
-    Ok(resp)
+
+    let status = resp.status();
+    let body = resp.text().await?;
+    if !status.is_success() {
+        return Err(LanternError::Auth(format!(
+            "Device code request failed ({status}): {body}"
+        )));
+    }
+
+    let parsed: DeviceCodeResponse =
+        serde_json::from_str(&body).map_err(|e| LanternError::Auth(e.to_string()))?;
+    Ok(parsed)
 }
 
 // ── Step 2: Poll for MSA token ─────────────────────────────────────────
@@ -159,15 +165,22 @@ pub async fn refresh_msa_token(
             ("client_id", CLIENT_ID),
             ("grant_type", "refresh_token"),
             ("refresh_token", refresh_token),
-            ("scope", "XboxLive.signin offline_access"),
+            ("scope", MSA_SCOPE),
         ])
         .send()
-        .await?
-        .error_for_status()
-        .map_err(|_| LanternError::Auth("Failed to refresh Microsoft token".into()))?
-        .json::<MsaTokenResponse>()
         .await?;
-    Ok(resp)
+
+    let status = resp.status();
+    let body = resp.text().await?;
+    if !status.is_success() {
+        return Err(LanternError::Auth(format!(
+            "Failed to refresh token ({status}): {body}"
+        )));
+    }
+
+    let parsed: MsaTokenResponse =
+        serde_json::from_str(&body).map_err(|e| LanternError::Auth(e.to_string()))?;
+    Ok(parsed)
 }
 
 // ── Step 4: MSA → XBL → XSTS → Minecraft token exchange ───────────────
@@ -176,34 +189,42 @@ async fn exchange_xbl_token(
     client: &reqwest::Client,
     msa_access_token: &str,
 ) -> Result<(String, String), LanternError> {
+    // Legacy MSA tokens use the raw token as RpsTicket (no "d=" prefix).
     let body = serde_json::json!({
         "Properties": {
             "AuthMethod": "RPS",
             "SiteName": "user.auth.xboxlive.com",
-            "RpsTicket": format!("d={msa_access_token}")
+            "RpsTicket": msa_access_token
         },
         "RelyingParty": "http://auth.xboxlive.com",
         "TokenType": "JWT"
     });
 
-    let resp: XblResponse = client
+    let resp = client
         .post("https://user.auth.xboxlive.com/user/authenticate")
         .json(&body)
         .send()
-        .await?
-        .error_for_status()
-        .map_err(|e| LanternError::Auth(format!("Xbox Live auth failed: {e}")))?
-        .json()
         .await?;
 
-    let uhs = resp
+    let status = resp.status();
+    let text = resp.text().await?;
+    if !status.is_success() {
+        return Err(LanternError::Auth(format!(
+            "Xbox Live auth failed ({status}): {text}"
+        )));
+    }
+
+    let parsed: XblResponse =
+        serde_json::from_str(&text).map_err(|e| LanternError::Auth(e.to_string()))?;
+
+    let uhs = parsed
         .display_claims
         .xui
         .first()
         .map(|x| x.uhs.clone())
         .ok_or_else(|| LanternError::Auth("No user hash in XBL response".into()))?;
 
-    Ok((resp.token, uhs))
+    Ok((parsed.token, uhs))
 }
 
 async fn exchange_xsts_token(
@@ -219,17 +240,23 @@ async fn exchange_xsts_token(
         "TokenType": "JWT"
     });
 
-    let resp: XstsResponse = client
+    let resp = client
         .post("https://xsts.auth.xboxlive.com/xsts/authorize")
         .json(&body)
         .send()
-        .await?
-        .error_for_status()
-        .map_err(|e| LanternError::Auth(format!("XSTS auth failed: {e}")))?
-        .json()
         .await?;
 
-    Ok(resp.token)
+    let status = resp.status();
+    let text = resp.text().await?;
+    if !status.is_success() {
+        return Err(LanternError::Auth(format!(
+            "XSTS auth failed ({status}): {text}"
+        )));
+    }
+
+    let parsed: XstsResponse =
+        serde_json::from_str(&text).map_err(|e| LanternError::Auth(e.to_string()))?;
+    Ok(parsed.token)
 }
 
 async fn get_minecraft_token(
@@ -241,36 +268,49 @@ async fn get_minecraft_token(
         "identityToken": format!("XBL3.0 x={user_hash};{xsts_token}")
     });
 
-    let resp: MinecraftAuthResponse = client
+    let resp = client
         .post("https://api.minecraftservices.com/authentication/loginWithXbox")
         .json(&body)
         .send()
-        .await?
-        .error_for_status()
-        .map_err(|e| LanternError::Auth(format!("Minecraft auth failed: {e}")))?
-        .json()
         .await?;
 
-    Ok(resp.access_token)
+    let status = resp.status();
+    let text = resp.text().await?;
+    if !status.is_success() {
+        return Err(LanternError::Auth(format!(
+            "Minecraft auth failed ({status}): {text}"
+        )));
+    }
+
+    let parsed: MinecraftAuthResponse =
+        serde_json::from_str(&text).map_err(|e| LanternError::Auth(e.to_string()))?;
+    Ok(parsed.access_token)
 }
 
 pub async fn get_minecraft_profile(
     client: &reqwest::Client,
     mc_access_token: &str,
 ) -> Result<MinecraftProfile, LanternError> {
-    let resp: MinecraftProfileResponse = client
+    let resp = client
         .get("https://api.minecraftservices.com/minecraft/profile")
         .bearer_auth(mc_access_token)
         .send()
-        .await?
-        .error_for_status()
-        .map_err(|e| LanternError::Auth(format!("Failed to get Minecraft profile: {e}")))?
-        .json()
         .await?;
 
+    let status = resp.status();
+    let text = resp.text().await?;
+    if !status.is_success() {
+        return Err(LanternError::Auth(format!(
+            "Failed to get Minecraft profile ({status}): {text}"
+        )));
+    }
+
+    let parsed: MinecraftProfileResponse =
+        serde_json::from_str(&text).map_err(|e| LanternError::Auth(e.to_string()))?;
+
     Ok(MinecraftProfile {
-        id: resp.id,
-        name: resp.name,
+        id: parsed.id,
+        name: parsed.name,
     })
 }
 
