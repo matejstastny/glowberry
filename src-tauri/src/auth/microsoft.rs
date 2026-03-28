@@ -2,15 +2,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::LanternError;
 
-// Legacy MSA OAuth — no Azure AD registration required.
-// Uses the official Minecraft launcher client ID with login.live.com endpoints.
 const CLIENT_ID: &str = "00000000402b5328";
 const MSA_AUTHORIZE_URL: &str = "https://login.live.com/oauth20_authorize.srf";
 const MSA_TOKEN_URL: &str = "https://login.live.com/oauth20_token.srf";
 const MSA_SCOPE: &str = "service::user.auth.xboxlive.com::MBI_SSL";
 pub const REDIRECT_URI: &str = "https://login.live.com/oauth20_desktop.srf";
 
-// ── Types ──────────────────────────────────────────────────────────────
+// Types -----------------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MinecraftProfile {
@@ -30,7 +28,7 @@ pub struct MsaTokenResponse {
     pub refresh_token: String,
 }
 
-// ── Xbox / Minecraft token exchange internal types ─────────────────────
+// Token exchange types --------------------------------------------------
 
 #[derive(Debug, Deserialize)]
 struct XblResponse {
@@ -67,7 +65,7 @@ struct MinecraftProfileResponse {
     name: String,
 }
 
-// ── Build the auth URL for the webview ─────────────────────────────────
+// Public ----------------------------------------------------------------
 
 pub fn build_auth_url() -> String {
     format!(
@@ -78,8 +76,6 @@ pub fn build_auth_url() -> String {
          &prompt=select_account"
     )
 }
-
-// ── Exchange auth code for MSA tokens ──────────────────────────────────
 
 pub async fn exchange_auth_code(
     client: &reqwest::Client,
@@ -109,8 +105,6 @@ pub async fn exchange_auth_code(
     serde_json::from_str(&body).map_err(|e| LanternError::Auth(e.to_string()))
 }
 
-// ── Refresh MSA token ──────────────────────────────────────────────────
-
 pub async fn refresh_msa_token(
     client: &reqwest::Client,
     refresh_token: &str,
@@ -137,13 +131,10 @@ pub async fn refresh_msa_token(
     serde_json::from_str(&body).map_err(|e| LanternError::Auth(e.to_string()))
 }
 
-// ── MSA → XBL → XSTS → Minecraft token exchange ───────────────────────
-
 async fn exchange_xbl_token(
     client: &reqwest::Client,
     msa_access_token: &str,
 ) -> Result<(String, String), LanternError> {
-    // Legacy MSA tokens — no "d=" prefix.
     let body = serde_json::json!({
         "Properties": {
             "AuthMethod": "RPS",
@@ -205,9 +196,7 @@ async fn exchange_xsts_token(
     let text = resp.text().await?;
     if !status.is_success() {
         eprintln!("[auth] XSTS failed ({status}): {text}");
-        return Err(LanternError::Auth(format!(
-            "XSTS auth failed ({status})"
-        )));
+        return Err(LanternError::Auth(format!("XSTS auth failed ({status})")));
     }
 
     let parsed: XstsResponse =
