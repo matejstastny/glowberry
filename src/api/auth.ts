@@ -1,12 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { DeviceCodeInfo, LoginPollResult, MinecraftProfile } from "@/types";
+import type { MinecraftProfile } from "@/types";
 
-export async function startLogin(): Promise<DeviceCodeInfo> {
-    return invoke<DeviceCodeInfo>("start_login");
-}
-
-export async function checkLoginStatus(): Promise<LoginPollResult> {
-    return invoke<LoginPollResult>("check_login_status");
+export async function startLogin(): Promise<MinecraftProfile> {
+    return invoke<MinecraftProfile>("start_login");
 }
 
 export async function getAuthStatus(): Promise<MinecraftProfile | null> {

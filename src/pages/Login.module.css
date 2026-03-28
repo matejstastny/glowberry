@@ -33,9 +33,7 @@
     justify-content: center;
 }
 
-/* Idle / Welcome state */
 .welcome,
-.codeFlow,
 .success {
     display: flex;
     flex-direction: column;
@@ -43,10 +41,6 @@
     text-align: center;
     max-width: 340px;
     animation: fadeInUp 0.3s ease;
-}
-
-.center {
-    color: var(--text-muted);
 }
 
 .icon {
@@ -92,76 +86,7 @@
     background: var(--accent-hover);
 }
 
-/* Code flow */
-.codeTitle {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    margin-bottom: 12px;
-}
-
-.code {
-    font-size: 28px;
-    font-weight: 700;
-    letter-spacing: 4px;
-    color: var(--text-primary);
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    padding: 14px 28px;
-    cursor: pointer;
-    transition: all var(--transition);
-    font-family: inherit;
-    user-select: all;
-}
-
-.code:hover {
-    border-color: var(--accent);
-    box-shadow: var(--accent-glow);
-}
-
-.codeHint {
-    font-size: 11px;
-    color: var(--text-muted);
-    margin-top: 8px;
-    margin-bottom: 24px;
-}
-
-.instructions {
-    font-size: 13px;
-    color: var(--text-secondary);
-    margin-bottom: 12px;
-    line-height: 1.5;
-}
-
-.linkBtn {
-    padding: 8px 20px;
-    background: transparent;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    color: var(--accent);
-    font-size: 12px;
-    font-weight: 500;
-    font-family: inherit;
-    cursor: pointer;
-    transition: all var(--transition);
-}
-
-.linkBtn:hover {
-    border-color: var(--accent);
-    background: var(--accent-soft);
-}
-
-.waiting {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 28px;
-    color: var(--text-muted);
-    font-size: 12px;
-}
-
-/* Success state */
+/* Success */
 .checkCircle {
     width: 48px;
     height: 48px;
@@ -181,7 +106,7 @@
     margin-bottom: 6px;
 }
 
-/* Error state */
+/* Error */
 .errorIcon {
     width: 48px;
     height: 48px;

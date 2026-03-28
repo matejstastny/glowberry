@@ -1,14 +1,10 @@
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-use crate::auth::microsoft::{AuthTokens, DeviceCodeResponse, MinecraftProfile};
+use crate::auth::microsoft::{AuthTokens, MinecraftProfile};
 use crate::instance::manager::InstanceManager;
 
-/// In-memory auth session: active device code flow + current login.
 pub struct AuthState {
-    /// Active device code flow (while user is logging in).
-    pub pending_device_code: Option<DeviceCodeResponse>,
-    /// Current logged-in profile + tokens.
     pub profile: Option<MinecraftProfile>,
     pub tokens: Option<AuthTokens>,
 }
@@ -16,7 +12,6 @@ pub struct AuthState {
 impl AuthState {
     pub fn new() -> Self {
         Self {
-            pending_device_code: None,
             profile: None,
             tokens: None,
         }

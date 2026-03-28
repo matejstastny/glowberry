@@ -94,12 +94,3 @@ export interface MinecraftProfile {
     id: string;
     name: string;
 }
-
-export interface DeviceCodeInfo {
-    user_code: string;
-    verification_uri: string;
-}
-
-export type LoginPollResult =
-    | { status: "pending" }
-    | { status: "complete"; profile: MinecraftProfile };

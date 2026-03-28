@@ -23,7 +23,6 @@ pub fn run() {
         .manage(app_state)
         .invoke_handler(tauri::generate_handler![
             commands::auth::start_login,
-            commands::auth::check_login_status,
             commands::auth::get_auth_status,
             commands::auth::try_restore_session,
             commands::auth::logout,

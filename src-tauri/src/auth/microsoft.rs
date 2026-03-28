@@ -2,13 +2,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::LanternError;
 
-// Azure AD application — register your own at portal.azure.com
-// (Personal Microsoft accounts only, "Allow public client flows" enabled)
-const CLIENT_ID: &str = "REPLACE_WITH_YOUR_AZURE_CLIENT_ID";
-const MSA_DEVICE_CODE_URL: &str =
-    "https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode";
-const MSA_TOKEN_URL: &str = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token";
-const MSA_SCOPE: &str = "XboxLive.signin offline_access";
+// Legacy MSA OAuth — no Azure AD registration required.
+// Uses the official Minecraft launcher client ID with login.live.com endpoints.
+const CLIENT_ID: &str = "00000000402b5328";
+const MSA_AUTHORIZE_URL: &str = "https://login.live.com/oauth20_authorize.srf";
+const MSA_TOKEN_URL: &str = "https://login.live.com/oauth20_token.srf";
+const MSA_SCOPE: &str = "service::user.auth.xboxlive.com::MBI_SSL";
+pub const REDIRECT_URI: &str = "https://login.live.com/oauth20_desktop.srf";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -16,15 +16,6 @@ const MSA_SCOPE: &str = "XboxLive.signin offline_access";
 pub struct MinecraftProfile {
     pub id: String,
     pub name: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DeviceCodeResponse {
-    pub device_code: String,
-    pub user_code: String,
-    pub verification_uri: String,
-    pub expires_in: u32,
-    pub interval: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,28 +28,6 @@ pub struct AuthTokens {
 pub struct MsaTokenResponse {
     pub access_token: String,
     pub refresh_token: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct MsaErrorResponse {
-    error: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-enum MsaPollResponse {
-    Success(MsaTokenResponse),
-    Error(MsaErrorResponse),
-}
-
-/// Result of polling: either still pending, or completed with tokens + profile.
-#[derive(Debug, Clone, Serialize)]
-#[serde(tag = "status")]
-pub enum LoginPollResult {
-    #[serde(rename = "pending")]
-    Pending,
-    #[serde(rename = "complete")]
-    Complete { profile: MinecraftProfile },
 }
 
 // ── Xbox / Minecraft token exchange internal types ─────────────────────
@@ -98,63 +67,48 @@ struct MinecraftProfileResponse {
     name: String,
 }
 
-// ── Step 1: Request device code ────────────────────────────────────────
+// ── Build the auth URL for the webview ─────────────────────────────────
 
-pub async fn request_device_code(
+pub fn build_auth_url() -> String {
+    format!(
+        "{MSA_AUTHORIZE_URL}?client_id={CLIENT_ID}\
+         &response_type=code\
+         &redirect_uri={REDIRECT_URI}\
+         &scope={MSA_SCOPE}"
+    )
+}
+
+// ── Exchange auth code for MSA tokens ──────────────────────────────────
+
+pub async fn exchange_auth_code(
     client: &reqwest::Client,
-) -> Result<DeviceCodeResponse, LanternError> {
+    code: &str,
+) -> Result<MsaTokenResponse, LanternError> {
     let resp = client
-        .post(MSA_DEVICE_CODE_URL)
-        .form(&[("client_id", CLIENT_ID), ("scope", MSA_SCOPE)])
+        .post(MSA_TOKEN_URL)
+        .form(&[
+            ("client_id", CLIENT_ID),
+            ("grant_type", "authorization_code"),
+            ("code", code),
+            ("redirect_uri", REDIRECT_URI),
+            ("scope", MSA_SCOPE),
+        ])
         .send()
         .await?;
 
     let status = resp.status();
     let body = resp.text().await?;
     if !status.is_success() {
+        eprintln!("[auth] MSA token exchange failed ({status}): {body}");
         return Err(LanternError::Auth(format!(
-            "Device code request failed ({status}): {body}"
+            "Microsoft token exchange failed ({status})"
         )));
     }
 
-    let parsed: DeviceCodeResponse =
-        serde_json::from_str(&body).map_err(|e| LanternError::Auth(e.to_string()))?;
-    Ok(parsed)
+    serde_json::from_str(&body).map_err(|e| LanternError::Auth(e.to_string()))
 }
 
-// ── Step 2: Poll for MSA token ─────────────────────────────────────────
-
-/// Poll Microsoft for token. Returns None if user hasn't completed login yet.
-pub async fn poll_for_msa_token(
-    client: &reqwest::Client,
-    device_code: &str,
-) -> Result<Option<MsaTokenResponse>, LanternError> {
-    let resp = client
-        .post(MSA_TOKEN_URL)
-        .form(&[
-            ("client_id", CLIENT_ID),
-            ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
-            ("device_code", device_code),
-        ])
-        .send()
-        .await?;
-
-    let body = resp.text().await?;
-    let parsed: MsaPollResponse =
-        serde_json::from_str(&body).map_err(|e| LanternError::Auth(e.to_string()))?;
-
-    match parsed {
-        MsaPollResponse::Success(tokens) => Ok(Some(tokens)),
-        MsaPollResponse::Error(err) => match err.error.as_str() {
-            "authorization_pending" | "slow_down" => Ok(None),
-            "authorization_declined" => Err(LanternError::Auth("Login was declined".into())),
-            "expired_token" => Err(LanternError::Auth("Login code expired".into())),
-            other => Err(LanternError::Auth(format!("Auth error: {other}"))),
-        },
-    }
-}
-
-// ── Step 3: Refresh MSA token ──────────────────────────────────────────
+// ── Refresh MSA token ──────────────────────────────────────────────────
 
 pub async fn refresh_msa_token(
     client: &reqwest::Client,
@@ -175,27 +129,25 @@ pub async fn refresh_msa_token(
     let body = resp.text().await?;
     if !status.is_success() {
         return Err(LanternError::Auth(format!(
-            "Failed to refresh token ({status}): {body}"
+            "Failed to refresh token ({status})"
         )));
     }
 
-    let parsed: MsaTokenResponse =
-        serde_json::from_str(&body).map_err(|e| LanternError::Auth(e.to_string()))?;
-    Ok(parsed)
+    serde_json::from_str(&body).map_err(|e| LanternError::Auth(e.to_string()))
 }
 
-// ── Step 4: MSA → XBL → XSTS → Minecraft token exchange ───────────────
+// ── MSA → XBL → XSTS → Minecraft token exchange ───────────────────────
 
 async fn exchange_xbl_token(
     client: &reqwest::Client,
     msa_access_token: &str,
 ) -> Result<(String, String), LanternError> {
-    // Azure AD v2.0 tokens require the "d=" prefix on the RpsTicket.
+    // Legacy MSA tokens — no "d=" prefix.
     let body = serde_json::json!({
         "Properties": {
             "AuthMethod": "RPS",
             "SiteName": "user.auth.xboxlive.com",
-            "RpsTicket": format!("d={msa_access_token}")
+            "RpsTicket": msa_access_token
         },
         "RelyingParty": "http://auth.xboxlive.com",
         "TokenType": "JWT"
@@ -210,8 +162,9 @@ async fn exchange_xbl_token(
     let status = resp.status();
     let text = resp.text().await?;
     if !status.is_success() {
+        eprintln!("[auth] XBL failed ({status}): {text}");
         return Err(LanternError::Auth(format!(
-            "Xbox Live auth failed ({status}): {text}"
+            "Xbox Live auth failed ({status})"
         )));
     }
 
@@ -250,8 +203,9 @@ async fn exchange_xsts_token(
     let status = resp.status();
     let text = resp.text().await?;
     if !status.is_success() {
+        eprintln!("[auth] XSTS failed ({status}): {text}");
         return Err(LanternError::Auth(format!(
-            "XSTS auth failed ({status}): {text}"
+            "XSTS auth failed ({status})"
         )));
     }
 
@@ -278,8 +232,9 @@ async fn get_minecraft_token(
     let status = resp.status();
     let text = resp.text().await?;
     if !status.is_success() {
+        eprintln!("[auth] MC auth failed ({status}): {text}");
         return Err(LanternError::Auth(format!(
-            "Minecraft auth failed ({status}): {text}"
+            "Minecraft auth failed ({status})"
         )));
     }
 
@@ -301,8 +256,9 @@ pub async fn get_minecraft_profile(
     let status = resp.status();
     let text = resp.text().await?;
     if !status.is_success() {
+        eprintln!("[auth] MC profile failed ({status}): {text}");
         return Err(LanternError::Auth(format!(
-            "Failed to get Minecraft profile ({status}): {text}"
+            "Failed to get Minecraft profile ({status})"
         )));
     }
 
@@ -315,15 +271,19 @@ pub async fn get_minecraft_profile(
     })
 }
 
-/// Run the full token exchange: MSA access token → Minecraft access token + profile.
+/// Full exchange chain: MSA access token → Minecraft access token + profile.
 pub async fn full_token_exchange(
     client: &reqwest::Client,
     msa_access_token: &str,
     msa_refresh_token: &str,
 ) -> Result<(AuthTokens, MinecraftProfile), LanternError> {
+    eprintln!("[auth] XBL exchange...");
     let (xbl_token, user_hash) = exchange_xbl_token(client, msa_access_token).await?;
+    eprintln!("[auth] XSTS exchange...");
     let xsts_token = exchange_xsts_token(client, &xbl_token).await?;
+    eprintln!("[auth] Minecraft token...");
     let mc_token = get_minecraft_token(client, &xsts_token, &user_hash).await?;
+    eprintln!("[auth] Minecraft profile...");
     let profile = get_minecraft_profile(client, &mc_token).await?;
 
     let tokens = AuthTokens {

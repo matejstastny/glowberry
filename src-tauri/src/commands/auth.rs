@@ -1,83 +1,86 @@
-use serde::Serialize;
-use tauri::State;
+use tauri::webview::WebviewWindowBuilder;
+use tauri::{AppHandle, Manager, State, WebviewUrl};
 
 use crate::auth::keychain;
-use crate::auth::microsoft::{self, LoginPollResult, MinecraftProfile};
+use crate::auth::microsoft::{self, MinecraftProfile, REDIRECT_URI};
 use crate::error::LanternError;
 use crate::state::AppState;
 
-#[derive(Debug, Clone, Serialize)]
-pub struct DeviceCodeInfo {
-    pub user_code: String,
-    pub verification_uri: String,
-}
-
-/// Begin the Microsoft device code login flow.
-/// Returns the code the user needs to enter at the verification URL.
+/// Open a Microsoft login window. Returns the profile on success.
+/// The window closes automatically after login completes.
 #[tauri::command]
-pub async fn start_login(state: State<'_, AppState>) -> Result<DeviceCodeInfo, LanternError> {
-    eprintln!("[auth] starting device code request...");
-    let resp = microsoft::request_device_code(&state.http_client).await.map_err(|e| {
-        eprintln!("[auth] device code request failed: {e}");
-        e
-    })?;
-    eprintln!("[auth] got device code: {}", resp.user_code);
-
-    let info = DeviceCodeInfo {
-        user_code: resp.user_code.clone(),
-        verification_uri: resp.verification_uri.clone(),
-    };
-
-    {
-        let mut auth = state.auth.lock().unwrap();
-        auth.pending_device_code = Some(resp);
+pub async fn start_login(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<MinecraftProfile, LanternError> {
+    // Close any leftover auth window from a previous attempt
+    if let Some(w) = app.get_webview_window("auth-login") {
+        let _ = w.close();
     }
 
-    Ok(info)
-}
+    let auth_url = microsoft::build_auth_url();
+    let parsed_url = url::Url::parse(&auth_url)
+        .map_err(|e| LanternError::Auth(format!("Invalid auth URL: {e}")))?;
 
-/// Poll to check if the user has completed the login flow.
-/// Call this on an interval (every ~5s) after start_login.
-#[tauri::command]
-pub async fn check_login_status(
-    state: State<'_, AppState>,
-) -> Result<LoginPollResult, LanternError> {
-    let device_code = {
-        let auth = state.auth.lock().unwrap();
-        auth.pending_device_code
-            .as_ref()
-            .map(|dc| dc.device_code.clone())
-    };
+    // Channel to receive the auth code from the navigation callback
+    let (tx, rx) = tokio::sync::oneshot::channel::<Result<String, String>>();
+    let tx = std::sync::Mutex::new(Some(tx));
 
-    let device_code = device_code
-        .ok_or_else(|| LanternError::Auth("No login flow in progress".into()))?;
+    eprintln!("[auth] opening login window...");
 
-    let msa_result = microsoft::poll_for_msa_token(&state.http_client, &device_code)
+    let window = WebviewWindowBuilder::new(&app, "auth-login", WebviewUrl::External(parsed_url))
+        .title("Sign in — Lantern")
+        .inner_size(500.0, 650.0)
+        .resizable(true)
+        .on_navigation(move |url| {
+            let url_str = url.as_str();
+            if !url_str.starts_with(REDIRECT_URI) {
+                return true; // allow normal navigation
+            }
+
+            // Microsoft redirected back — extract code or error
+            let result = if let Some(code) = url
+                .query_pairs()
+                .find(|(k, _)| k == "code")
+                .map(|(_, v)| v.to_string())
+            {
+                Ok(code)
+            } else if let Some(desc) = url
+                .query_pairs()
+                .find(|(k, _)| k == "error_description")
+                .map(|(_, v)| v.to_string())
+            {
+                Err(desc)
+            } else {
+                Err("Login was cancelled".to_string())
+            };
+
+            if let Some(tx) = tx.lock().unwrap().take() {
+                let _ = tx.send(result);
+            }
+            false // block redirect — we'll close the window
+        })
+        .build()
+        .map_err(|e| LanternError::Auth(format!("Failed to open login window: {e}")))?;
+
+    // Wait for the navigation callback to fire (or window to be closed)
+    let auth_code = rx
         .await
-        .map_err(|e| {
-            eprintln!("[auth] MSA poll error: {e}");
-            e
-        })?;
+        .map_err(|_| LanternError::Auth("Login window was closed".into()))?
+        .map_err(LanternError::Auth)?;
 
-    let msa_tokens = match msa_result {
-        None => return Ok(LoginPollResult::Pending),
-        Some(tokens) => {
-            eprintln!("[auth] MSA token received, starting token exchange...");
-            tokens
-        }
-    };
+    let _ = window.close();
 
-    // Full exchange: MSA → XBL → XSTS → Minecraft
-    let (auth_tokens, profile) = microsoft::full_token_exchange(
-        &state.http_client,
-        &msa_tokens.access_token,
-        &msa_tokens.refresh_token,
-    )
-    .await
-    .map_err(|e| {
-        eprintln!("[auth] token exchange failed: {e}");
-        e
-    })?;
+    eprintln!("[auth] got auth code, exchanging tokens...");
+
+    // Exchange auth code → MSA tokens
+    let msa = microsoft::exchange_auth_code(&state.http_client, &auth_code).await?;
+
+    // Full chain: MSA → XBL → XSTS → Minecraft
+    let (auth_tokens, profile) =
+        microsoft::full_token_exchange(&state.http_client, &msa.access_token, &msa.refresh_token)
+            .await?;
+
     eprintln!("[auth] login complete: {}", profile.name);
 
     // Save refresh token to OS keychain
@@ -86,12 +89,11 @@ pub async fn check_login_status(
     // Update in-memory state
     {
         let mut auth = state.auth.lock().unwrap();
-        auth.pending_device_code = None;
         auth.profile = Some(profile.clone());
         auth.tokens = Some(auth_tokens);
     }
 
-    Ok(LoginPollResult::Complete { profile })
+    Ok(profile)
 }
 
 /// Get the current auth status (logged in profile or null).
@@ -112,10 +114,12 @@ pub async fn try_restore_session(
         None => return Ok(None),
     };
 
+    eprintln!("[auth] found stored token, restoring session...");
+
     let msa = match microsoft::refresh_msa_token(&state.http_client, &refresh_token).await {
         Ok(tokens) => tokens,
-        Err(_) => {
-            // Refresh token expired or invalid — clear it
+        Err(e) => {
+            eprintln!("[auth] refresh failed: {e}");
             let _ = keychain::delete_refresh_token();
             return Ok(None);
         }
@@ -129,11 +133,14 @@ pub async fn try_restore_session(
     .await
     {
         Ok(result) => result,
-        Err(_) => {
+        Err(e) => {
+            eprintln!("[auth] token exchange failed during restore: {e}");
             let _ = keychain::delete_refresh_token();
             return Ok(None);
         }
     };
+
+    eprintln!("[auth] session restored: {}", profile.name);
 
     keychain::save_refresh_token(&auth_tokens.msa_refresh_token)?;
 
@@ -153,8 +160,8 @@ pub fn logout(state: State<'_, AppState>) -> Result<(), LanternError> {
         let mut auth = state.auth.lock().unwrap();
         auth.profile = None;
         auth.tokens = None;
-        auth.pending_device_code = None;
     }
     keychain::delete_refresh_token()?;
+    eprintln!("[auth] logged out");
     Ok(())
 }
