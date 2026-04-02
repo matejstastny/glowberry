@@ -8,6 +8,9 @@ import Login from "@/pages/Login";
 import { useAuth } from "@/hooks/useAuth";
 import { useGameStatus } from "@/hooks/useGameStatus";
 import { launchInstance } from "@/api/launch";
+import { deleteInstance } from "@/api/instances";
+import { getSettings } from "@/api/settings";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import type { Page } from "@/types";
 
 export default function App() {
@@ -71,6 +74,27 @@ export default function App() {
         }
     }
 
+    async function handleDelete(instanceId: string) {
+        const ok = window.confirm("Delete this modpack? This removes all its files.");
+        if (!ok) return;
+        try {
+            await deleteInstance(instanceId);
+            setRefreshKey((k) => k + 1);
+        } catch (e) {
+            console.error("Delete failed:", e);
+        }
+    }
+
+    async function handleOpenFolder(instanceId: string) {
+        try {
+            const settings = await getSettings();
+            const path = `${settings.data_dir}/instances/${instanceId}/.minecraft`;
+            await openUrl(`file://${path}`);
+        } catch (e) {
+            console.error("Open folder failed:", e);
+        }
+    }
+
     function handleLogoutAndNavigate() {
         handleLogout();
         if (page.kind === "login") {
@@ -92,6 +116,8 @@ export default function App() {
                 {page.kind === "home" && (
                     <Home
                         onPlay={handlePlay}
+                        onDelete={handleDelete}
+                        onOpenFolder={handleOpenFolder}
                         runningInstance={runningInstance}
                         preparingInstance={preparingInstance}
                         launchError={launchError ?? crashLog}

@@ -1,4 +1,5 @@
 .row {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 14px;
@@ -7,6 +8,7 @@
     background: transparent;
     transition: background var(--transition);
     animation: fadeInUp 0.3s ease both;
+    overflow: hidden;
 }
 
 .row:hover {
@@ -78,18 +80,21 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 34px;
-    height: 34px;
-    border: none;
+    width: 32px;
+    height: 32px;
+    border: 1.5px solid var(--accent);
     border-radius: 50%;
-    background: var(--accent);
-    color: #fff;
+    background: transparent;
+    color: var(--accent);
     cursor: pointer;
     transition: all var(--transition);
+    flex-shrink: 0;
 }
 
 .playBtn:hover {
-    background: var(--accent-hover);
+    background: linear-gradient(135deg, #d4a24c, #c4873a);
+    border-color: transparent;
+    color: #fff;
     box-shadow: var(--accent-glow);
 }
 
@@ -129,6 +134,8 @@
 
 .playBtnRunning {
     background: var(--online);
+    border-color: transparent;
+    color: #fff;
 }
 
 .playBtnRunning:hover {
@@ -143,6 +150,8 @@
 
 .playBtnPreparing {
     background: var(--accent);
+    border-color: transparent;
+    color: #fff;
     opacity: 0.8;
 }
 
@@ -154,4 +163,45 @@
 .running {
     color: var(--online);
     font-weight: 500;
+}
+
+.lastPlayed {
+    color: var(--text-muted);
+    font-weight: 400;
+}
+
+.deleteBtn:hover {
+    color: #dc5050 !important;
+    background: rgba(220, 80, 80, 0.1) !important;
+}
+
+/* Progress bar — indeterminate shimmer when preparing */
+.progressBar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--accent-soft);
+    overflow: hidden;
+}
+
+.progressBar::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -40%;
+    width: 40%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    animation: shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+    0% {
+        left: -40%;
+    }
+    100% {
+        left: 100%;
+    }
 }

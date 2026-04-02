@@ -5,6 +5,8 @@ import styles from "./Home.module.css";
 
 interface HomeProps {
     onPlay: (id: string) => void;
+    onDelete?: (id: string) => void;
+    onOpenFolder?: (id: string) => void;
     runningInstance: string | null;
     preparingInstance: string | null;
     launchError: string | null;
@@ -14,6 +16,8 @@ interface HomeProps {
 
 export default function Home({
     onPlay,
+    onDelete,
+    onOpenFolder,
     runningInstance,
     preparingInstance,
     launchError,
@@ -69,6 +73,8 @@ export default function Home({
                         key={instance.id}
                         instance={instance}
                         onPlay={onPlay}
+                        onDelete={onDelete}
+                        onOpenFolder={onOpenFolder}
                         index={i}
                         isRunning={runningInstance === instance.id}
                         isPreparing={preparingInstance === instance.id}
