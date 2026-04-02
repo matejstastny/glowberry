@@ -23,10 +23,12 @@ pub struct AppState {
     pub instances: Mutex<InstanceManager>,
     pub auth: Mutex<AuthState>,
     pub data_dir: PathBuf,
+    pub config_dir: PathBuf,
+    pub default_data_dir: PathBuf,
 }
 
 impl AppState {
-    pub fn new(data_dir: PathBuf) -> Self {
+    pub fn new(data_dir: PathBuf, config_dir: PathBuf, default_data_dir: PathBuf) -> Self {
         std::fs::create_dir_all(&data_dir).expect("Failed to create data directory");
         std::fs::create_dir_all(data_dir.join("instances"))
             .expect("Failed to create instances dir");
@@ -47,6 +49,8 @@ impl AppState {
             instances: Mutex::new(InstanceManager::new(data_dir.join("instances"))),
             auth: Mutex::new(AuthState::new()),
             data_dir,
+            config_dir,
+            default_data_dir,
         }
     }
 }
