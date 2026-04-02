@@ -136,6 +136,21 @@
     box-shadow: none;
 }
 
+.preparing {
+    color: var(--accent);
+    font-weight: 500;
+}
+
+.playBtnPreparing {
+    background: var(--accent);
+    opacity: 0.8;
+}
+
+.playBtnPreparing:hover {
+    background: var(--accent);
+    box-shadow: none;
+}
+
 .running {
     color: var(--online);
     font-weight: 500;

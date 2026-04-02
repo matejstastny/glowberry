@@ -6,11 +6,18 @@ import styles from "./Home.module.css";
 interface HomeProps {
     onPlay: (id: string) => void;
     runningInstance: string | null;
+    preparingInstance: string | null;
     launchError: string | null;
     refreshKey: number;
 }
 
-export default function Home({ onPlay, runningInstance, launchError, refreshKey }: HomeProps) {
+export default function Home({
+    onPlay,
+    runningInstance,
+    preparingInstance,
+    launchError,
+    refreshKey,
+}: HomeProps) {
     const { instances, loading, refresh } = useInstances();
 
     useEffect(() => {
@@ -46,6 +53,7 @@ export default function Home({ onPlay, runningInstance, launchError, refreshKey 
                         onPlay={onPlay}
                         index={i}
                         isRunning={runningInstance === instance.id}
+                        isPreparing={preparingInstance === instance.id}
                     />
                 ))}
             </div>

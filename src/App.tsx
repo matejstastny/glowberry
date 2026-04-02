@@ -22,6 +22,7 @@ export default function App() {
     const [pendingLaunchId, setPendingLaunchId] = useState<string | null>(null);
     const [launchError, setLaunchError] = useState<string | null>(null);
     const [refreshKey, setRefreshKey] = useState(0);
+    const [preparingInstance, setPreparingInstance] = useState<string | null>(null);
 
     const { profile, setProfile, handleLogout } = useAuth();
     const { running: runningInstance, crashLog } = useGameStatus();
@@ -36,17 +37,20 @@ export default function App() {
 
     async function doLaunch(instanceId: string, username?: string) {
         setLaunchError(null);
+        setPreparingInstance(instanceId);
         try {
             await launchInstance(instanceId, isOnline, username ?? undefined);
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : String(e);
             console.error("Launch failed:", msg);
             setLaunchError(msg);
+        } finally {
+            setPreparingInstance(null);
         }
     }
 
     function handlePlay(instanceId: string) {
-        if (runningInstance) return; // already running
+        if (runningInstance || preparingInstance) return;
 
         if (!isOnline && !offlineUsername) {
             setPendingLaunchId(instanceId);
@@ -89,6 +93,7 @@ export default function App() {
                     <Home
                         onPlay={handlePlay}
                         runningInstance={runningInstance}
+                        preparingInstance={preparingInstance}
                         launchError={launchError ?? crashLog}
                         refreshKey={refreshKey}
                     />
