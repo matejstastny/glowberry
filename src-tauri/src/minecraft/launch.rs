@@ -173,11 +173,18 @@ pub async fn launch_instance(
     ];
     memory_args.extend(instance.jvm_args.clone());
 
-    // 10. Spawn process
+    // 10. Ensure game directory exists
+    tokio::fs::create_dir_all(&minecraft_dir).await?;
+
+    // 11. Spawn process
     // Command: java [memory_args] [jvm_args] MainClass [game_args]
     eprintln!("[launch] Starting Minecraft...");
     eprintln!("[launch] Java: {}", java.path.display());
     eprintln!("[launch] Main class: {}", version_json.main_class);
+    eprintln!("[launch] Game dir: {}", minecraft_dir.display());
+    eprintln!("[launch] JVM args: {:?}", jvm_args);
+    eprintln!("[launch] Memory args: {:?}", memory_args);
+    eprintln!("[launch] Game args: {:?}", game_args);
 
     let mut cmd = Command::new(&java.path);
     cmd.args(&memory_args);
