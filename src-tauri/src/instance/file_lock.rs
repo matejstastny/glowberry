@@ -1,7 +1,7 @@
 use serde::Serialize;
 use std::path::Path;
 
-use crate::error::LanternError;
+use crate::error::GlowberryError;
 use crate::instance::manager::Instance;
 
 #[derive(Debug, Clone, Serialize)]
@@ -17,7 +17,7 @@ pub fn list_files(
     minecraft_dir: &Path,
     instance: &Instance,
     search: Option<&str>,
-) -> Result<Vec<FileEntry>, LanternError> {
+) -> Result<Vec<FileEntry>, GlowberryError> {
     let mut entries = Vec::new();
 
     if !minecraft_dir.exists() {
@@ -52,7 +52,7 @@ fn collect_files(
     dir: &Path,
     locked: &std::collections::HashSet<String>,
     entries: &mut Vec<FileEntry>,
-) -> Result<(), LanternError> {
+) -> Result<(), GlowberryError> {
     for entry in std::fs::read_dir(dir)? {
         let entry = entry?;
         let path = entry.path();

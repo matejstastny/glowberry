@@ -3,7 +3,7 @@ use tauri::{AppHandle, Manager, State, WebviewUrl};
 
 use crate::auth::keychain;
 use crate::auth::microsoft::{self, MinecraftProfile, REDIRECT_URI};
-use crate::error::LanternError;
+use crate::error::GlowberryError;
 use crate::state::AppState;
 
 /// Open a Microsoft login window. Returns the profile on success.
@@ -12,7 +12,7 @@ use crate::state::AppState;
 pub async fn start_login(
     app: AppHandle,
     state: State<'_, AppState>,
-) -> Result<MinecraftProfile, LanternError> {
+) -> Result<MinecraftProfile, GlowberryError> {
     // Close any leftover auth window from a previous attempt
     if let Some(w) = app.get_webview_window("auth-login") {
         let _ = w.close();
@@ -20,7 +20,7 @@ pub async fn start_login(
 
     let auth_url = microsoft::build_auth_url();
     let parsed_url = url::Url::parse(&auth_url)
-        .map_err(|e| LanternError::Auth(format!("Invalid auth URL: {e}")))?;
+        .map_err(|e| GlowberryError::Auth(format!("Invalid auth URL: {e}")))?;
 
     // Channel to receive the auth code from the navigation callback
     let (tx, rx) = tokio::sync::oneshot::channel::<Result<String, String>>();
@@ -29,7 +29,7 @@ pub async fn start_login(
     eprintln!("[auth] opening login window...");
 
     let window = WebviewWindowBuilder::new(&app, "auth-login", WebviewUrl::External(parsed_url))
-        .title("Sign in — Lantern")
+        .title("Sign in — Glowberry")
         .inner_size(500.0, 650.0)
         .resizable(true)
         .on_navigation(move |url| {
@@ -61,13 +61,13 @@ pub async fn start_login(
             false // block redirect — we'll close the window
         })
         .build()
-        .map_err(|e| LanternError::Auth(format!("Failed to open login window: {e}")))?;
+        .map_err(|e| GlowberryError::Auth(format!("Failed to open login window: {e}")))?;
 
     // Wait for the navigation callback to fire (or window to be closed)
     let auth_code = rx
         .await
-        .map_err(|_| LanternError::Auth("Login window was closed".into()))?
-        .map_err(LanternError::Auth)?;
+        .map_err(|_| GlowberryError::Auth("Login window was closed".into()))?
+        .map_err(GlowberryError::Auth)?;
 
     let _ = window.close();
 
@@ -108,7 +108,7 @@ pub fn get_auth_status(state: State<'_, AppState>) -> Option<MinecraftProfile> {
 #[tauri::command]
 pub async fn try_restore_session(
     state: State<'_, AppState>,
-) -> Result<Option<MinecraftProfile>, LanternError> {
+) -> Result<Option<MinecraftProfile>, GlowberryError> {
     let refresh_token = match keychain::load_refresh_token()? {
         Some(t) => t,
         None => return Ok(None),
@@ -155,7 +155,7 @@ pub async fn try_restore_session(
 
 /// Log out: clear tokens from memory and keychain.
 #[tauri::command]
-pub fn logout(state: State<'_, AppState>) -> Result<(), LanternError> {
+pub fn logout(state: State<'_, AppState>) -> Result<(), GlowberryError> {
     {
         let mut auth = state.auth.lock().unwrap();
         auth.profile = None;

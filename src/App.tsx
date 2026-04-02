@@ -13,10 +13,10 @@ import type { Page } from "@/types";
 export default function App() {
     const [page, setPage] = useState<Page>({ kind: "home" });
     const [isOnline, setIsOnline] = useState(
-        () => localStorage.getItem("lantern_online_mode") !== "offline",
+        () => localStorage.getItem("glowberry_online_mode") !== "offline",
     );
     const [offlineUsername, setOfflineUsername] = useState<string | null>(
-        localStorage.getItem("lantern_offline_username"),
+        localStorage.getItem("glowberry_offline_username"),
     );
     const [showOfflinePopup, setShowOfflinePopup] = useState(false);
     const [pendingLaunchId, setPendingLaunchId] = useState<string | null>(null);
@@ -30,7 +30,7 @@ export default function App() {
     function handleToggleOnline() {
         setIsOnline((prev) => {
             const next = !prev;
-            localStorage.setItem("lantern_online_mode", next ? "online" : "offline");
+            localStorage.setItem("glowberry_online_mode", next ? "online" : "offline");
             return next;
         });
     }
@@ -62,7 +62,7 @@ export default function App() {
     }
 
     function handleOfflineSubmit(username: string) {
-        localStorage.setItem("lantern_offline_username", username);
+        localStorage.setItem("glowberry_offline_username", username);
         setOfflineUsername(username);
         setShowOfflinePopup(false);
         if (pendingLaunchId) {

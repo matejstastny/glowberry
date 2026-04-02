@@ -1,4 +1,4 @@
-# Lantern
+# Glowberry
 
 A simple, fast Minecraft launcher for managing modpacks with a streamlined feature set and minimalist UI. Created as an alternative launcher for users who prefer a lighter approach to modpack management.
 
@@ -33,8 +33,8 @@ A simple, fast Minecraft launcher for managing modpacks with a streamlined featu
 ### Setup
 
 ```bash
-git clone https://github.com/matejstastny/lantern.git
-cd lantern
+git clone https://github.com/matejstastny/glowberry.git
+cd glowberry
 npm install
 ```
 
@@ -52,7 +52,7 @@ npm run check            # TypeScript type checking
 ### Project Structure
 
 ```
-lantern/
+glowberry/
 ├── src/                    # React frontend
 │   ├── api/                # Tauri IPC wrappers
 │   ├── components/         # Reusable UI components

@@ -115,7 +115,7 @@ export default function Settings({ navigate }: SettingsProps) {
 
                         {saved && (
                             <div className={styles.restartNote}>
-                                Restart Lantern for changes to take effect
+                                Restart Glowberry for changes to take effect
                             </div>
                         )}
                     </div>
@@ -125,14 +125,14 @@ export default function Settings({ navigate }: SettingsProps) {
             <div className={styles.section}>
                 <div className={styles.sectionLabel}>About</div>
                 <div className={styles.card}>
-                    <div className={styles.aboutName}>Lantern</div>
+                    <div className={styles.aboutName}>Glowberry</div>
                     <div className={styles.aboutVersion}>v0.1.0</div>
                     <div className={styles.aboutDesc}>
                         A simple Minecraft launcher built with care.
                     </div>
                     <button
                         className={styles.githubBtn}
-                        onClick={() => openUrl("https://github.com/matejstastny/lantern")}
+                        onClick={() => openUrl("https://github.com/matejstastny/glowberry")}
                     >
                         <GithubIcon size={14} />
                         <span>GitHub</span>

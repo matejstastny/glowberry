@@ -13,7 +13,7 @@ use state::AppState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let dirs = directories::ProjectDirs::from("com", "lantern", "Lantern")
+    let dirs = directories::ProjectDirs::from("com", "glowberry", "Glowberry")
         .expect("Failed to determine data directory");
     let config_dir = dirs.config_dir().to_path_buf();
     let default_data_dir = dirs.data_dir().to_path_buf();
@@ -48,5 +48,5 @@ pub fn run() {
             commands::settings::set_data_dir,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Lantern");
+        .expect("error while running Glowberry");
 }

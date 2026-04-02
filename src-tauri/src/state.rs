@@ -43,7 +43,7 @@ impl AppState {
 
         Self {
             http_client: reqwest::Client::builder()
-                .user_agent("lantern/0.1.0")
+                .user_agent("glowberry/0.1.0")
                 .build()
                 .expect("Failed to create HTTP client"),
             instances: Mutex::new(InstanceManager::new(data_dir.join("instances"))),

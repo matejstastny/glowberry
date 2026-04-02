@@ -1,4 +1,4 @@
-# Lantern
+# Glowberry
 
 A simple, fast Minecraft launcher built with Tauri v2 (Rust) + React + TypeScript.
 
@@ -24,7 +24,7 @@ npm run check            # TypeScript type checking
 ### Rust (src-tauri/)
 
 - `commands/` is a thin adapter layer — business logic goes in core modules (`modrinth/`, `instance/`, `download/`, etc.)
-- All fallible functions return `Result<T, LanternError>`
+- All fallible functions return `Result<T, GlowberryError>`
 - Structs that cross the IPC boundary derive `Serialize` (and `Deserialize` if received from frontend)
 - Use `State<'_, AppState>` to access shared state in commands
 - Formatted with rustfmt (config in `src-tauri/rustfmt.toml`)
@@ -54,6 +54,6 @@ npm run check            # TypeScript type checking
 
 - **Target audience is non-technical** — UI language should be simple, no jargon. "Play" not "Launch". "Keep my files safe" not "File locking."
 - **Native window decorations** — `decorations: true` in tauri.conf.json. Works properly with tiling window managers (aerospace, etc.).
-- **File locks** are stored as relative paths in `lantern_instance.json`. Directory locks end with `/`.
+- **File locks** are stored as relative paths in `glowberry_instance.json`. Directory locks end with `/`.
 - **Update system** diffs old vs new `modrinth.index.json` to compute add/update/remove/skip actions. Locked files are skipped.
 - **Per-instance .minecraft/** — each instance has its own game directory. Libraries and assets are shared.

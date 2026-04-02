@@ -6,7 +6,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
 use crate::download::manager::{DownloadManager, DownloadTask, ExpectedHash};
-use crate::error::LanternError;
+use crate::error::GlowberryError;
 use crate::instance::manager::{Instance, ModLoader, ModpackInfo};
 use crate::modrinth::api::ModrinthApi;
 use crate::modrinth::mrpack::{extract_overrides, parse_mrpack};
@@ -46,7 +46,7 @@ pub async fn install_modpack(
     state: &AppState,
     project_id: String,
     version_id: String,
-) -> Result<Instance, LanternError> {
+) -> Result<Instance, GlowberryError> {
     let client = &state.http_client;
     let api = ModrinthApi::new(client.clone());
 
@@ -59,7 +59,7 @@ pub async fn install_modpack(
         .iter()
         .find(|f| f.primary)
         .or_else(|| version.files.first())
-        .ok_or_else(|| LanternError::Other("No files in version".into()))?;
+        .ok_or_else(|| GlowberryError::Other("No files in version".into()))?;
 
     // Stage: Downloading mrpack
     emit_progress(
@@ -112,14 +112,14 @@ pub async fn install_modpack(
     let index =
         tokio::task::spawn_blocking(move || parse_mrpack(&mrpack_path_clone))
             .await
-            .map_err(|e| LanternError::Other(format!("Parse task failed: {e}")))??;
+            .map_err(|e| GlowberryError::Other(format!("Parse task failed: {e}")))??;
 
     // Read dependencies
     let mc_version = index
         .dependencies
         .get("minecraft")
         .cloned()
-        .ok_or_else(|| LanternError::Other("Modpack has no minecraft dependency".into()))?;
+        .ok_or_else(|| GlowberryError::Other("Modpack has no minecraft dependency".into()))?;
 
     let fabric_version = index.dependencies.get("fabric-loader").cloned();
     let quilt_version = index.dependencies.get("quilt-loader").cloned();
@@ -185,7 +185,7 @@ pub async fn install_modpack(
             .downloads
             .first()
             .ok_or_else(|| {
-                LanternError::Other(format!("No download URL for {}", mf.path))
+                GlowberryError::Other(format!("No download URL for {}", mf.path))
             })?
             .clone();
 
@@ -232,14 +232,14 @@ pub async fn install_modpack(
                 },
             );
 
-            Ok::<(), LanternError>(())
+            Ok::<(), GlowberryError>(())
         }));
     }
 
     for handle in handles {
         handle
             .await
-            .map_err(|e| LanternError::Other(format!("Download task panicked: {e}")))??;
+            .map_err(|e| GlowberryError::Other(format!("Download task panicked: {e}")))??;
     }
 
     // Stage: Extracting overrides
@@ -266,7 +266,7 @@ pub async fn install_modpack(
         )
     })
     .await
-    .map_err(|e| LanternError::Other(format!("Extract task failed: {e}")))??;
+    .map_err(|e| GlowberryError::Other(format!("Extract task failed: {e}")))??;
 
     // Add extracted override files to manifest
     for path in &extracted {
@@ -313,7 +313,7 @@ pub async fn install_modpack(
 
     // Write last_mrpack_index.json (copy of the modrinth.index.json)
     let mrpack_path_clone3 = mrpack_path.clone();
-    let index_json = tokio::task::spawn_blocking(move || -> Result<String, LanternError> {
+    let index_json = tokio::task::spawn_blocking(move || -> Result<String, GlowberryError> {
         let file = std::fs::File::open(&mrpack_path_clone3)?;
         let mut archive = zip::ZipArchive::new(file)?;
         let mut index_entry = archive.by_name("modrinth.index.json")?;
@@ -322,7 +322,7 @@ pub async fn install_modpack(
         Ok(contents)
     })
     .await
-    .map_err(|e| LanternError::Other(format!("Read index task failed: {e}")))??;
+    .map_err(|e| GlowberryError::Other(format!("Read index task failed: {e}")))??;
 
     tokio::fs::write(instance_dir.join("last_mrpack_index.json"), index_json).await?;
 

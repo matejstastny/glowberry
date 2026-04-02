@@ -1,7 +1,7 @@
 use serde::Serialize;
 use tauri::State;
 
-use crate::error::LanternError;
+use crate::error::GlowberryError;
 use crate::settings::Settings;
 use crate::state::AppState;
 
@@ -26,10 +26,10 @@ pub fn get_settings(state: State<'_, AppState>) -> SettingsInfo {
 pub fn set_data_dir(
     state: State<'_, AppState>,
     path: Option<String>,
-) -> Result<(), LanternError> {
+) -> Result<(), GlowberryError> {
     let mut settings = Settings::load(&state.config_dir);
     settings.data_dir = path;
     settings
         .save(&state.config_dir)
-        .map_err(|e| LanternError::Other(format!("Failed to save settings: {e}")))
+        .map_err(|e| GlowberryError::Other(format!("Failed to save settings: {e}")))
 }
