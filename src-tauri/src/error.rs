@@ -20,6 +20,12 @@ pub enum LanternError {
     #[error("Instance error: {0}")]
     Instance(String),
 
+    #[error("Java error: {0}")]
+    Java(String),
+
+    #[error("Launch error: {0}")]
+    Launch(String),
+
     #[error("Hash mismatch for {file}: expected {expected}, got {actual}")]
     HashMismatch {
         file: String,
@@ -53,6 +59,8 @@ impl LanternError {
             Self::Json(_) => "json",
             Self::Auth(_) => "auth",
             Self::Instance(_) => "instance",
+            Self::Java(_) => "java",
+            Self::Launch(_) => "launch",
             Self::HashMismatch { .. } => "hash_mismatch",
             Self::Other(_) => "other",
         }

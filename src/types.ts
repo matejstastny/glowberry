@@ -94,3 +94,37 @@ export interface MinecraftProfile {
     id: string;
     name: string;
 }
+
+// Install progress
+
+export interface InstallProgress {
+    stage:
+        | "downloading"
+        | "parsing"
+        | "installing_mods"
+        | "extracting_overrides"
+        | "installing_loader"
+        | "finalizing"
+        | "complete"
+        | "failed";
+    message: string;
+    current: number;
+    total: number;
+    bytes_downloaded: number;
+    bytes_total: number;
+    project_id: string;
+}
+
+// Game events
+
+export interface GameLogEvent {
+    instance_id: string;
+    line: string;
+    stream: "stdout" | "stderr";
+}
+
+export interface GameExitEvent {
+    instance_id: string;
+    exit_code: number | null;
+    crash_log: string | null;
+}

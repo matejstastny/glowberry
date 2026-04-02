@@ -126,3 +126,32 @@
     color: var(--accent);
     background: var(--accent-soft);
 }
+
+.playBtnRunning {
+    background: var(--online);
+}
+
+.playBtnRunning:hover {
+    background: var(--online);
+    box-shadow: none;
+}
+
+.preparing {
+    color: var(--accent);
+    font-weight: 500;
+}
+
+.playBtnPreparing {
+    background: var(--accent);
+    opacity: 0.8;
+}
+
+.playBtnPreparing:hover {
+    background: var(--accent);
+    box-shadow: none;
+}
+
+.running {
+    color: var(--online);
+    font-weight: 500;
+}

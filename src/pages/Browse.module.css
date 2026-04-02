@@ -187,3 +187,21 @@
     color: var(--online);
     background: var(--online-soft);
 }
+
+.error {
+    border-color: #c45050;
+    color: #c45050;
+}
+
+.error:hover {
+    border-color: #c45050;
+    color: #c45050;
+    background: rgba(196, 80, 80, 0.1);
+}
+
+.progressText {
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    flex-shrink: 0;
+}

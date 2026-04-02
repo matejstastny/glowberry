@@ -1,4 +1,3 @@
-import { useState } from "react";
 import type { Instance } from "../types";
 import { PlayIcon, RefreshIcon, SettingsIcon, SpinnerIcon, PackageIcon } from "./Icons";
 import styles from "./ModpackRow.module.css";
@@ -10,6 +9,8 @@ interface ModpackRowProps {
     onSettings?: (id: string) => void;
     updateAvailable?: boolean;
     index?: number;
+    isRunning?: boolean;
+    isPreparing?: boolean;
 }
 
 const loaderLabel: Record<string, string> = {
@@ -27,14 +28,14 @@ export default function ModpackRow({
     onSettings,
     updateAvailable = false,
     index = 0,
+    isRunning = false,
+    isPreparing = false,
 }: ModpackRowProps) {
-    const [launching, setLaunching] = useState(false);
+    const busy = isRunning || isPreparing;
 
     function handlePlay(e: React.MouseEvent) {
         e.stopPropagation();
-        setLaunching(true);
-        onPlay(instance.id);
-        setTimeout(() => setLaunching(false), 1500);
+        if (!busy) onPlay(instance.id);
     }
 
     const versionText = instance.modpack?.version_name || instance.minecraft_version;
@@ -62,17 +63,29 @@ export default function ModpackRow({
                             <span>{authorText}</span>
                         </>
                     )}
+                    {isPreparing && (
+                        <>
+                            <span className={styles.dot}>&middot;</span>
+                            <span className={styles.preparing}>Preparing...</span>
+                        </>
+                    )}
+                    {isRunning && (
+                        <>
+                            <span className={styles.dot}>&middot;</span>
+                            <span className={styles.running}>Running</span>
+                        </>
+                    )}
                 </div>
             </div>
 
             <div className={styles.actions}>
                 <button
-                    className={styles.playBtn}
+                    className={`${styles.playBtn} ${isRunning ? styles.playBtnRunning : ""} ${isPreparing ? styles.playBtnPreparing : ""}`}
                     onClick={handlePlay}
-                    disabled={launching}
-                    title="Play"
+                    disabled={busy}
+                    title={isRunning ? "Running" : isPreparing ? "Preparing..." : "Play"}
                 >
-                    {launching ? <SpinnerIcon size={16} /> : <PlayIcon size={16} />}
+                    {busy ? <SpinnerIcon size={16} /> : <PlayIcon size={16} />}
                 </button>
                 <button
                     className={`${styles.actionBtn} ${updateAvailable ? styles.updateHighlight : ""}`}
