@@ -37,7 +37,12 @@ export default function Home({
     if (instances.length === 0) {
         return (
             <div className={styles.home}>
-                <div className={styles.center}>No modpacks yet</div>
+                <div className={styles.empty}>
+                    <div className={styles.emptyTitle}>No modpacks yet</div>
+                    <div className={styles.emptyHint}>
+                        Click <strong>Add Pack</strong> to browse and install one
+                    </div>
+                </div>
             </div>
         );
     }

@@ -44,18 +44,19 @@
     border: none;
     border-radius: var(--radius-sm);
     background: transparent;
-    color: var(--text-secondary);
+    color: var(--text-primary);
     font-size: 12px;
     font-weight: 500;
     font-family: inherit;
     cursor: pointer;
     transition: all var(--transition);
     white-space: nowrap;
+    opacity: 0.75;
 }
 
 .navBtn:hover {
     background: var(--bg-card);
-    color: var(--text-primary);
+    opacity: 1;
 }
 
 .navBtn.active {

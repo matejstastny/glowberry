@@ -128,7 +128,7 @@ export default function Settings({ navigate }: SettingsProps) {
                     <div className={styles.aboutName}>Glowberry</div>
                     <div className={styles.aboutVersion}>v0.1.0</div>
                     <div className={styles.aboutDesc}>
-                        A simple Minecraft launcher built with care.
+                        A simple, fast Minecraft launcher.
                     </div>
                     <button
                         className={styles.githubBtn}
