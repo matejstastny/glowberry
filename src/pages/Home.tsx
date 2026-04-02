@@ -40,7 +40,7 @@ export default function Home({
                 <div className={styles.empty}>
                     <div className={styles.emptyTitle}>No modpacks yet</div>
                     <div className={styles.emptyHint}>
-                        Click <strong>Add Pack</strong> to browse and install one
+                        Click Add Pack to browse and install one
                     </div>
                 </div>
             </div>

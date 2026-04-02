@@ -34,11 +34,6 @@
     font-size: 12px;
 }
 
-.emptyHint strong {
-    color: var(--text-secondary);
-    font-weight: 600;
-}
-
 .list {
     display: flex;
     flex-direction: column;

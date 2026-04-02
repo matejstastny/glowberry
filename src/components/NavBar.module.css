@@ -2,7 +2,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 48px;
+    height: 52px;
     padding: 0 12px;
     background: var(--bg-nav);
     border-bottom: 1px solid var(--border);
@@ -13,7 +13,7 @@
 /* macOS: extend nav behind traffic lights */
 :global(:root.macos) .nav {
     height: auto;
-    min-height: 48px;
+    min-height: 52px;
     padding-top: 32px;
 }
 
