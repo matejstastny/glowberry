@@ -19,10 +19,10 @@
     --text-muted: #464958;
 
     /* Accent — warm berry glow */
-    --accent: #d4944c;
-    --accent-hover: #c48438;
-    --accent-soft: rgba(212, 148, 76, 0.1);
-    --accent-glow: 0 0 20px rgba(212, 148, 76, 0.15);
+    --accent: #e0607a;
+    --accent-hover: #cc506a;
+    --accent-soft: rgba(224, 96, 122, 0.1);
+    --accent-glow: 0 0 20px rgba(224, 96, 122, 0.15);
 
     /* Status */
     --online: #5cb67a;
