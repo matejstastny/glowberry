@@ -30,6 +30,10 @@ export default function OfflinePopup({ onSubmit, onCancel }: OfflinePopupProps) 
                         onChange={(e) => setUsername(e.target.value)}
                         autoFocus
                         maxLength={16}
+                        autoCorrect="off"
+                        autoComplete="off"
+                        autoCapitalize="off"
+                        spellCheck={false}
                     />
                     <button
                         className={styles.confirmBtn}

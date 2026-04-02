@@ -21,6 +21,10 @@
 }
 
 .errorBanner {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
     padding: 8px 14px;
     margin-bottom: 8px;
     border-radius: var(--radius);
@@ -28,8 +32,39 @@
     border: 1px solid rgba(196, 80, 80, 0.3);
     color: #e07070;
     font-size: 12px;
-    white-space: pre-wrap;
     max-height: 200px;
     overflow-y: auto;
+}
+
+.errorText {
+    flex: 1;
+    min-width: 0;
+    white-space: pre-wrap;
     font-family: var(--font-mono, monospace);
+    font-size: inherit;
+    color: inherit;
+    margin: 0;
+}
+
+.errorClose {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: #e07070;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    transition: all var(--transition);
+    opacity: 0.6;
+}
+
+.errorClose:hover {
+    background: rgba(196, 80, 80, 0.15);
+    opacity: 1;
 }

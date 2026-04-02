@@ -108,14 +108,14 @@
     border: none;
     border-radius: var(--radius-sm);
     background: transparent;
-    color: var(--text-muted);
+    color: var(--text-secondary);
     cursor: pointer;
     transition: all var(--transition);
 }
 
 .actionBtn:hover {
     background: var(--bg-card-hover);
-    color: var(--text-secondary);
+    color: var(--text-primary);
 }
 
 .updateHighlight {

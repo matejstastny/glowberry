@@ -8,6 +8,7 @@ interface HomeProps {
     runningInstance: string | null;
     preparingInstance: string | null;
     launchError: string | null;
+    onDismissError?: () => void;
     refreshKey: number;
 }
 
@@ -16,6 +17,7 @@ export default function Home({
     runningInstance,
     preparingInstance,
     launchError,
+    onDismissError,
     refreshKey,
 }: HomeProps) {
     const { instances, loading, refresh } = useInstances();
@@ -43,7 +45,18 @@ export default function Home({
     return (
         <div className={styles.home}>
             {launchError && (
-                <div className={styles.errorBanner}>{launchError}</div>
+                <div className={styles.errorBanner}>
+                    <pre className={styles.errorText}>{launchError}</pre>
+                    {onDismissError && (
+                        <button
+                            className={styles.errorClose}
+                            onClick={onDismissError}
+                            title="Dismiss"
+                        >
+                            &times;
+                        </button>
+                    )}
+                </div>
             )}
             <div className={styles.list}>
                 {instances.map((instance, i) => (

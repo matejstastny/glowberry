@@ -95,6 +95,7 @@ export default function App() {
                         runningInstance={runningInstance}
                         preparingInstance={preparingInstance}
                         launchError={launchError ?? crashLog}
+                        onDismissError={() => setLaunchError(null)}
                         refreshKey={refreshKey}
                     />
                 )}

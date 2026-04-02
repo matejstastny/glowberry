@@ -43,6 +43,15 @@ export default function ModpackRow({
 
     return (
         <div className={styles.row} style={{ animationDelay: `${index * 30}ms` }}>
+            <button
+                className={`${styles.playBtn} ${isRunning ? styles.playBtnRunning : ""} ${isPreparing ? styles.playBtnPreparing : ""}`}
+                onClick={handlePlay}
+                disabled={busy}
+                title={isRunning ? "Running" : isPreparing ? "Preparing..." : "Play"}
+            >
+                {busy ? <SpinnerIcon size={16} /> : <PlayIcon size={16} />}
+            </button>
+
             <div className={styles.icon}>
                 {instance.modpack?.icon_url ? (
                     <img src={instance.modpack.icon_url} alt="" />
@@ -79,14 +88,6 @@ export default function ModpackRow({
             </div>
 
             <div className={styles.actions}>
-                <button
-                    className={`${styles.playBtn} ${isRunning ? styles.playBtnRunning : ""} ${isPreparing ? styles.playBtnPreparing : ""}`}
-                    onClick={handlePlay}
-                    disabled={busy}
-                    title={isRunning ? "Running" : isPreparing ? "Preparing..." : "Play"}
-                >
-                    {busy ? <SpinnerIcon size={16} /> : <PlayIcon size={16} />}
-                </button>
                 <button
                     className={`${styles.actionBtn} ${updateAvailable ? styles.updateHighlight : ""}`}
                     onClick={(e) => {
