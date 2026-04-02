@@ -126,4 +126,5 @@ export interface GameLogEvent {
 export interface GameExitEvent {
     instance_id: string;
     exit_code: number | null;
+    crash_log: string | null;
 }

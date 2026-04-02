@@ -24,7 +24,7 @@ export default function App() {
     const [refreshKey, setRefreshKey] = useState(0);
 
     const { profile, setProfile, handleLogout } = useAuth();
-    const runningInstance = useGameStatus();
+    const { running: runningInstance, crashLog } = useGameStatus();
 
     function handleToggleOnline() {
         setIsOnline((prev) => {
@@ -89,7 +89,7 @@ export default function App() {
                     <Home
                         onPlay={handlePlay}
                         runningInstance={runningInstance}
-                        launchError={launchError}
+                        launchError={launchError ?? crashLog}
                         refreshKey={refreshKey}
                     />
                 )}

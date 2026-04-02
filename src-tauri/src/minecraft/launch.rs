@@ -1,5 +1,6 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
@@ -33,6 +34,7 @@ struct GameLog {
 struct GameExit {
     instance_id: String,
     exit_code: Option<i32>,
+    crash_log: Option<String>,
 }
 
 pub async fn launch_instance(
@@ -218,10 +220,15 @@ pub async fn launch_instance(
         });
     }
 
+    const STDERR_TAIL_SIZE: usize = 50;
+    let stderr_tail: Arc<tokio::sync::Mutex<VecDeque<String>>> =
+        Arc::new(tokio::sync::Mutex::new(VecDeque::new()));
+
     let app_stderr = app.clone();
     let id_stderr = instance_id.clone();
-    if let Some(stderr) = stderr {
-        tokio::spawn(async move {
+    let stderr_tail_writer = stderr_tail.clone();
+    let stderr_handle = if let Some(stderr) = stderr {
+        Some(tokio::spawn(async move {
             let reader = BufReader::new(stderr);
             let mut lines = reader.lines();
             while let Ok(Some(line)) = lines.next_line().await {
@@ -229,13 +236,20 @@ pub async fn launch_instance(
                     "game-log",
                     GameLog {
                         instance_id: id_stderr.clone(),
-                        line,
+                        line: line.clone(),
                         stream: "stderr".into(),
                     },
                 );
+                let mut tail = stderr_tail_writer.lock().await;
+                tail.push_back(line);
+                if tail.len() > STDERR_TAIL_SIZE {
+                    tail.pop_front();
+                }
             }
-        });
-    }
+        }))
+    } else {
+        None
+    };
 
     // 12. Wait for exit in background
     let app_exit = app.clone();
@@ -244,11 +258,30 @@ pub async fn launch_instance(
         let status = child.wait().await;
         let exit_code = status.ok().and_then(|s| s.code());
         eprintln!("[launch] Minecraft exited with code: {exit_code:?}");
+
+        // Wait for stderr reader to finish so we have all lines
+        if let Some(handle) = stderr_handle {
+            let _ = handle.await;
+        }
+
+        // Include last stderr lines if the game crashed
+        let crash_log = if exit_code.is_some() && exit_code != Some(0) {
+            let tail = stderr_tail.lock().await;
+            if tail.is_empty() {
+                None
+            } else {
+                Some(tail.iter().cloned().collect::<Vec<_>>().join("\n"))
+            }
+        } else {
+            None
+        };
+
         let _ = app_exit.emit(
             "game-exit",
             GameExit {
                 instance_id: id_exit,
                 exit_code,
+                crash_log,
             },
         );
     });
