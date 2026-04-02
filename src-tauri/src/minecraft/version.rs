@@ -206,16 +206,43 @@ pub async fn load_version_json(path: &Path) -> Result<VersionJson, LanternError>
     Ok(serde_json::from_str(&data)?)
 }
 
+/// Extract the Maven group:artifact key (without version) from a coordinate.
+/// e.g. "org.ow2.asm:asm:9.9" -> "org.ow2.asm:asm"
+fn maven_group_artifact(name: &str) -> &str {
+    match name.match_indices(':').nth(1) {
+        Some((idx, _)) => &name[..idx],
+        None => name,
+    }
+}
+
 /// Merge a child version JSON (e.g. Fabric) with its parent (vanilla).
 /// The child overrides mainClass and adds its libraries.
+/// Libraries are deduplicated by group:artifact — child versions win.
 pub fn merge_version_json(child: VersionJson, parent: VersionJson) -> VersionJson {
     let mut merged = parent;
     merged.id = child.id;
     merged.main_class = child.main_class;
 
-    // Prepend child libraries (they take priority)
-    let mut libs = child.libraries;
-    libs.extend(merged.libraries);
+    // Deduplicate libraries: child versions take priority over parent
+    let mut seen = std::collections::HashSet::new();
+    let mut libs = Vec::new();
+
+    // Add child libs first (they win on conflicts)
+    for lib in child.libraries {
+        let key = maven_group_artifact(&lib.name).to_string();
+        seen.insert(key);
+        libs.push(lib);
+    }
+
+    // Add parent libs only if not shadowed by child
+    for lib in merged.libraries {
+        let key = maven_group_artifact(&lib.name).to_string();
+        if !seen.contains(&key) {
+            seen.insert(key);
+            libs.push(lib);
+        }
+    }
+
     merged.libraries = libs;
 
     // Merge arguments
