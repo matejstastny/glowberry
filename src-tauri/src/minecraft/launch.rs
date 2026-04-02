@@ -162,6 +162,9 @@ pub async fn launch_instance(
     subs.insert("version_type", version_json.version_type.clone());
     subs.insert("classpath_separator", classpath_separator().into());
     subs.insert("library_directory", data_dir.join("libraries").to_string_lossy().to_string());
+    // Microsoft auth extras (plain args in modern version JSONs)
+    subs.insert("clientid", "00000000402b5328".into());
+    subs.insert("auth_xuid", "0".into());
 
     let jvm_args = resolve_jvm_arguments(&version_json, &subs);
     let game_args = resolve_game_arguments(&version_json, &subs);

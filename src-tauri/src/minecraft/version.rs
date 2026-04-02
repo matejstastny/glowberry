@@ -105,6 +105,9 @@ pub struct LibraryArtifact {
 pub struct Rule {
     pub action: String,
     pub os: Option<OsRule>,
+    /// Feature conditions (e.g. is_demo_user, has_custom_resolution).
+    /// Rules with features only match if all specified features are active.
+    pub features: Option<HashMap<String, bool>>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -239,18 +242,29 @@ pub fn current_os_name() -> &'static str {
     }
 }
 
-/// Check if a library should be included based on its rules and the current OS.
+/// Check if a library/argument should be included based on its rules.
+/// Rules with `features` conditions are rejected (we don't enable
+/// is_demo_user, has_custom_resolution, quickPlay, etc.).
 fn library_allowed(rules: &[Rule]) -> bool {
     let os = current_os_name();
     let mut allowed = false;
 
     for rule in rules {
-        let matches = match &rule.os {
+        // Feature-gated rules: only match if all required features are false
+        // (i.e. we never enable demo mode, custom resolution, quickPlay, etc.)
+        if let Some(features) = &rule.features {
+            if features.values().any(|&v| v) {
+                // Rule requires a feature to be true, but we don't enable any
+                continue;
+            }
+        }
+
+        let os_matches = match &rule.os {
             Some(os_rule) => os_rule.name.as_deref().map_or(true, |name| name == os),
             None => true,
         };
 
-        if matches {
+        if os_matches {
             allowed = rule.action == "allow";
         }
     }
