@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useToast } from "@/hooks/useToast";
 import NavBar from "@/components/NavBar";
 import OfflinePopup from "@/components/OfflinePopup";
 import Home from "@/pages/Home";
@@ -27,6 +28,7 @@ export default function App() {
     const [refreshKey, setRefreshKey] = useState(0);
     const [preparingInstance, setPreparingInstance] = useState<string | null>(null);
 
+    const { toast } = useToast();
     const { profile, setProfile, handleLogout } = useAuth();
     const { running: runningInstance, crashLog } = useGameStatus();
 
@@ -80,8 +82,10 @@ export default function App() {
         try {
             await deleteInstance(instanceId);
             setRefreshKey((k) => k + 1);
+            toast("Modpack deleted", "success");
         } catch (e) {
             console.error("Delete failed:", e);
+            toast("Failed to delete modpack", "error");
         }
     }
 

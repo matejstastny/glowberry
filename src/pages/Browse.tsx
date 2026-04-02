@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from "react";
 import { searchModpacks, listVersions } from "../api/modpacks";
 import { installModpack } from "../api/install";
 import { useInstallProgress } from "../hooks/useInstallProgress";
+import { useToast } from "../hooks/useToast";
 import {
     SearchIcon,
     DownloadIcon,
@@ -26,6 +27,7 @@ export default function Browse({ navigate, onInstalled }: BrowseProps) {
     const [installing, setInstalling] = useState<Record<string, "loading" | "done" | "error">>({});
     const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
     const progress = useInstallProgress();
+    const { toast } = useToast();
 
     const doSearch = useCallback(async (q: string) => {
         if (q.trim().length === 0) return;
@@ -67,9 +69,11 @@ export default function Browse({ navigate, onInstalled }: BrowseProps) {
             await installModpack(projectId, latest.id);
             setInstalling((prev) => ({ ...prev, [projectId]: "done" }));
             onInstalled?.();
+            toast("Pack installed!", "success");
         } catch (e) {
             console.error("Install failed:", e);
             setInstalling((prev) => ({ ...prev, [projectId]: "error" }));
+            toast("Install failed", "error");
         }
     }
 
