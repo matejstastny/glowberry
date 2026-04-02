@@ -29,6 +29,11 @@
     font-weight: 600;
 }
 
+.emptyIllustration {
+    margin-bottom: 12px;
+    opacity: 0.85;
+}
+
 .emptyHint {
     color: var(--text-muted);
     font-size: 12px;
