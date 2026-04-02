@@ -206,12 +206,18 @@ pub async fn load_version_json(path: &Path) -> Result<VersionJson, LanternError>
     Ok(serde_json::from_str(&data)?)
 }
 
-/// Extract the Maven group:artifact key (without version) from a coordinate.
-/// e.g. "org.ow2.asm:asm:9.9" -> "org.ow2.asm:asm"
-fn maven_group_artifact(name: &str) -> &str {
-    match name.match_indices(':').nth(1) {
-        Some((idx, _)) => &name[..idx],
-        None => name,
+/// Build a deduplication key from a Maven coordinate, stripping only the version.
+/// 3-part "group:artifact:version"            -> "group:artifact"
+/// 4-part "group:artifact:version:classifier"  -> "group:artifact:classifier"
+/// This keeps native JARs (e.g. lwjgl:natives-macos-arm64) distinct from base JARs.
+fn maven_dedup_key(name: &str) -> String {
+    let parts: Vec<&str> = name.split(':').collect();
+    if parts.len() >= 4 {
+        format!("{}:{}:{}", parts[0], parts[1], parts[3])
+    } else if parts.len() >= 2 {
+        format!("{}:{}", parts[0], parts[1])
+    } else {
+        name.to_string()
     }
 }
 
@@ -229,14 +235,14 @@ pub fn merge_version_json(child: VersionJson, parent: VersionJson) -> VersionJso
 
     // Add child libs first (they win on conflicts)
     for lib in child.libraries {
-        let key = maven_group_artifact(&lib.name).to_string();
+        let key = maven_dedup_key(&lib.name);
         seen.insert(key);
         libs.push(lib);
     }
 
     // Add parent libs only if not shadowed by child
     for lib in merged.libraries {
-        let key = maven_group_artifact(&lib.name).to_string();
+        let key = maven_dedup_key(&lib.name);
         if !seen.contains(&key) {
             seen.insert(key);
             libs.push(lib);
