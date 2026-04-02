@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { ArrowLeftIcon, GithubIcon } from "../components/Icons";
 import { getSettings, setDataDir } from "../api/settings";
 import type { Page } from "../types";
@@ -13,8 +14,6 @@ export default function Settings({ navigate }: SettingsProps) {
     const [dataDir, setDataDir_] = useState("");
     const [defaultDataDir, setDefaultDataDir] = useState("");
     const [override_, setOverride] = useState<string | null>(null);
-    const [draftOverride, setDraftOverride] = useState("");
-    const [editing, setEditing] = useState(false);
     const [saved, setSaved] = useState(false);
 
     useEffect(() => {
@@ -22,28 +21,27 @@ export default function Settings({ navigate }: SettingsProps) {
             setDataDir_(s.data_dir);
             setDefaultDataDir(s.default_data_dir);
             setOverride(s.data_dir_override);
-            setDraftOverride(s.data_dir_override ?? "");
         });
     }, []);
 
-    async function handleSaveOverride() {
-        const value = draftOverride.trim() || null;
-        await setDataDir(value);
-        setOverride(value);
-        setEditing(false);
-        setSaved(true);
-    }
-
-    function handleCancelEdit() {
-        setDraftOverride(override_ ?? "");
-        setEditing(false);
+    async function handlePickFolder() {
+        const selected = await openDialog({
+            directory: true,
+            title: "Choose data directory",
+            defaultPath: dataDir,
+        });
+        if (selected) {
+            await setDataDir(selected);
+            setOverride(selected);
+            setDataDir_(selected);
+            setSaved(true);
+        }
     }
 
     async function handleReset() {
         await setDataDir(null);
         setOverride(null);
-        setDraftOverride("");
-        setEditing(false);
+        setDataDir_(defaultDataDir);
         setSaved(true);
     }
 
@@ -93,46 +91,27 @@ export default function Settings({ navigate }: SettingsProps) {
                             </button>
                         </div>
 
-                        {!editing ? (
-                            <div className={styles.overrideActions}>
-                                {override_ && (
-                                    <div className={styles.overrideNote}>
-                                        Custom path set (default: {defaultDataDir})
-                                    </div>
-                                )}
+                        <div className={styles.overrideActions}>
+                            {override_ && (
+                                <div className={styles.overrideNote}>
+                                    Custom path (default: {defaultDataDir})
+                                </div>
+                            )}
+                            <button
+                                className={styles.pathBtn}
+                                onClick={handlePickFolder}
+                            >
+                                {override_ ? "Change" : "Set custom path"}
+                            </button>
+                            {override_ && (
                                 <button
                                     className={styles.pathBtn}
-                                    onClick={() => setEditing(true)}
+                                    onClick={handleReset}
                                 >
-                                    {override_ ? "Change" : "Set custom path"}
+                                    Reset to default
                                 </button>
-                                {override_ && (
-                                    <button
-                                        className={styles.pathBtn}
-                                        onClick={handleReset}
-                                    >
-                                        Reset to default
-                                    </button>
-                                )}
-                            </div>
-                        ) : (
-                            <div className={styles.editRow}>
-                                <input
-                                    className={styles.pathInput}
-                                    type="text"
-                                    value={draftOverride}
-                                    onChange={(e) => setDraftOverride(e.target.value)}
-                                    placeholder={defaultDataDir}
-                                    autoFocus
-                                />
-                                <button className={styles.pathBtn} onClick={handleSaveOverride}>
-                                    Save
-                                </button>
-                                <button className={styles.pathBtn} onClick={handleCancelEdit}>
-                                    Cancel
-                                </button>
-                            </div>
-                        )}
+                            )}
+                        </div>
 
                         {saved && (
                             <div className={styles.restartNote}>
