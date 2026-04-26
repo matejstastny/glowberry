@@ -1,8 +1,19 @@
+### MacOS ###
 .DS_Store
+
+### Web ###
 node_modules
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+### Rust ###
+src-tauri/target
+src-tauri/gen/schemas
+
+### Build ###
 /dist
+
+### Env ###
 .env
 .env.*
 !.env.example
-vite.config.js.timestamp-*
-vite.config.ts.timestamp-*

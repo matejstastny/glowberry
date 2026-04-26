@@ -35,6 +35,7 @@
     "rust-analyzer.check.command": "clippy",
 
     "files.exclude": {
+        "src-tauri/target/": true,
         "**/node_modules": true,
         ".claude/": true,
         "**/build": true,
