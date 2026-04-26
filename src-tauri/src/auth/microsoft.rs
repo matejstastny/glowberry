@@ -134,12 +134,20 @@ pub async fn refresh_msa_token(
 async fn exchange_xbl_token(
     client: &reqwest::Client,
     msa_access_token: &str,
+    // live.com tokens: use as-is; OAuth2 device-code tokens: prepend "d="
+    use_d_prefix: bool,
 ) -> Result<(String, String), GlowberryError> {
+    let rps_ticket = if use_d_prefix {
+        format!("d={msa_access_token}")
+    } else {
+        msa_access_token.to_string()
+    };
+
     let body = serde_json::json!({
         "Properties": {
             "AuthMethod": "RPS",
             "SiteName": "user.auth.xboxlive.com",
-            "RpsTicket": msa_access_token
+            "RpsTicket": rps_ticket
         },
         "RelyingParty": "http://auth.xboxlive.com",
         "TokenType": "JWT"
@@ -262,13 +270,16 @@ pub async fn get_minecraft_profile(
 }
 
 /// Full exchange chain: MSA access token → Minecraft access token + profile.
+/// `use_d_prefix`: false for live.com tokens, true for OAuth2 device-code tokens.
 pub async fn full_token_exchange(
     client: &reqwest::Client,
     msa_access_token: &str,
     msa_refresh_token: &str,
+    use_d_prefix: bool,
 ) -> Result<(AuthTokens, MinecraftProfile), GlowberryError> {
     eprintln!("[auth] XBL exchange...");
-    let (xbl_token, user_hash) = exchange_xbl_token(client, msa_access_token).await?;
+    let (xbl_token, user_hash) =
+        exchange_xbl_token(client, msa_access_token, use_d_prefix).await?;
     eprintln!("[auth] XSTS exchange...");
     let xsts_token = exchange_xsts_token(client, &xbl_token).await?;
     eprintln!("[auth] Minecraft token...");

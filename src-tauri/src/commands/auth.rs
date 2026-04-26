@@ -1,19 +1,34 @@
+use serde::Serialize;
 use tauri::webview::WebviewWindowBuilder;
-use tauri::{AppHandle, Manager, State, WebviewUrl};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl};
 
 use crate::auth::keychain;
 use crate::auth::microsoft::{self, MinecraftProfile, REDIRECT_URI};
 use crate::error::GlowberryError;
 use crate::state::AppState;
 
-/// Open a Microsoft login window. Returns the profile on success.
-/// The window closes automatically after login completes.
+/// Emitted when login completes successfully.
+#[derive(Clone, Serialize)]
+struct AuthComplete {
+    profile: MinecraftProfile,
+}
+
+/// Emitted when login fails or is cancelled.
+#[derive(Clone, Serialize)]
+struct AuthError {
+    message: String,
+}
+
+/// Open the Microsoft login webview and return the auth URL immediately.
+/// The webview completes auth in the background and emits:
+///   - "auth-complete" { profile } on success
+///   - "auth-error"    { message } on failure / cancellation
 #[tauri::command]
 pub async fn start_login(
     app: AppHandle,
     state: State<'_, AppState>,
-) -> Result<MinecraftProfile, GlowberryError> {
-    // Close any leftover auth window from a previous attempt
+) -> Result<String, GlowberryError> {
+    // Close any stale auth window from a previous attempt
     if let Some(w) = app.get_webview_window("auth-login") {
         let _ = w.close();
     }
@@ -22,81 +37,110 @@ pub async fn start_login(
     let parsed_url = url::Url::parse(&auth_url)
         .map_err(|e| GlowberryError::Auth(format!("Invalid auth URL: {e}")))?;
 
-    // Channel to receive the auth code from the navigation callback
     let (tx, rx) = tokio::sync::oneshot::channel::<Result<String, String>>();
     let tx = std::sync::Mutex::new(Some(tx));
 
-    eprintln!("[auth] opening login window...");
+    let _window =
+        WebviewWindowBuilder::new(&app, "auth-login", WebviewUrl::External(parsed_url))
+            .title("Sign in to Microsoft — Glowberry")
+            .inner_size(480.0, 640.0)
+            .resizable(false)
+            .on_navigation(move |url| {
+                if !url.as_str().starts_with(REDIRECT_URI) {
+                    return true; // allow
+                }
+                let result = if let Some(code) = url
+                    .query_pairs()
+                    .find(|(k, _)| k == "code")
+                    .map(|(_, v)| v.to_string())
+                {
+                    Ok(code)
+                } else {
+                    let desc = url
+                        .query_pairs()
+                        .find(|(k, _)| k == "error_description")
+                        .map(|(_, v)| v.to_string())
+                        .unwrap_or_else(|| "Login was cancelled".to_string());
+                    Err(desc)
+                };
+                if let Some(tx) = tx.lock().unwrap().take() {
+                    let _ = tx.send(result);
+                }
+                false // block the redirect page itself
+            })
+            .build()
+            .map_err(|e| GlowberryError::Auth(format!("Failed to open login window: {e}")))?;
 
-    let window = WebviewWindowBuilder::new(&app, "auth-login", WebviewUrl::External(parsed_url))
-        .title("Sign in — Glowberry")
-        .inner_size(500.0, 650.0)
-        .resizable(true)
-        .on_navigation(move |url| {
-            let url_str = url.as_str();
-            if !url_str.starts_with(REDIRECT_URI) {
-                return true; // allow normal navigation
+    // Finish the auth flow in a background task so this command returns immediately
+    let http_client = state.http_client.clone();
+    let app_bg = app.clone();
+
+    tokio::spawn(async move {
+        let result: Result<MinecraftProfile, GlowberryError> = async {
+            let auth_code = rx
+                .await
+                .map_err(|_| GlowberryError::Auth("Login window closed".into()))?
+                .map_err(GlowberryError::Auth)?;
+
+            // Close the webview now that we have the code
+            if let Some(w) = app_bg.get_webview_window("auth-login") {
+                let _ = w.close();
             }
 
-            // Microsoft redirected back — extract code or error
-            let result = if let Some(code) = url
-                .query_pairs()
-                .find(|(k, _)| k == "code")
-                .map(|(_, v)| v.to_string())
-            {
-                Ok(code)
-            } else if let Some(desc) = url
-                .query_pairs()
-                .find(|(k, _)| k == "error_description")
-                .map(|(_, v)| v.to_string())
-            {
-                Err(desc)
-            } else {
-                Err("Login was cancelled".to_string())
-            };
+            eprintln!("[auth] got auth code, exchanging tokens...");
 
-            if let Some(tx) = tx.lock().unwrap().take() {
-                let _ = tx.send(result);
-            }
-            false // block redirect — we'll close the window
-        })
-        .build()
-        .map_err(|e| GlowberryError::Auth(format!("Failed to open login window: {e}")))?;
-
-    // Wait for the navigation callback to fire (or window to be closed)
-    let auth_code = rx
-        .await
-        .map_err(|_| GlowberryError::Auth("Login window was closed".into()))?
-        .map_err(GlowberryError::Auth)?;
-
-    let _ = window.close();
-
-    eprintln!("[auth] got auth code, exchanging tokens...");
-
-    // Exchange auth code → MSA tokens
-    let msa = microsoft::exchange_auth_code(&state.http_client, &auth_code).await?;
-
-    // Full chain: MSA → XBL → XSTS → Minecraft
-    let (auth_tokens, profile) =
-        microsoft::full_token_exchange(&state.http_client, &msa.access_token, &msa.refresh_token)
+            let msa = microsoft::exchange_auth_code(&http_client, &auth_code).await?;
+            let (auth_tokens, profile) = microsoft::full_token_exchange(
+                &http_client,
+                &msa.access_token,
+                &msa.refresh_token,
+                false, // live.com tokens — no "d=" prefix
+            )
             .await?;
 
-    eprintln!("[auth] login complete: {}", profile.name);
+            eprintln!("[auth] login complete: {}", profile.name);
 
-    // Save refresh token to OS keychain
-    keychain::save_refresh_token(&auth_tokens.msa_refresh_token)?;
+            keychain::save_refresh_token(&auth_tokens.msa_refresh_token)?;
 
-    // Update in-memory state
-    {
-        let mut auth = state.auth.lock().unwrap();
-        auth.profile = Some(profile.clone());
-        auth.tokens = Some(auth_tokens);
-    }
+            {
+                let state = app_bg.state::<AppState>();
+                let mut auth = state.auth.lock().unwrap();
+                auth.profile = Some(profile.clone());
+                auth.tokens = Some(auth_tokens);
+            }
 
-    Ok(profile)
+            Ok(profile)
+        }
+        .await;
+
+        match result {
+            Ok(profile) => {
+                let _ = app_bg.emit("auth-complete", AuthComplete { profile });
+            }
+            Err(e) => {
+                eprintln!("[auth] background login failed: {e}");
+                let _ = app_bg.emit("auth-error", AuthError {
+                    message: e.to_string(),
+                });
+            }
+        }
+    });
+
+    // Return the URL so the frontend can render a QR code while the webview is open
+    Ok(auth_url)
 }
 
-/// Get the current auth status (logged in profile or null).
+/// Close the login webview (cancel in-progress login).
+#[tauri::command]
+pub fn cancel_login(app: AppHandle) {
+    if let Some(w) = app.get_webview_window("auth-login") {
+        let _ = w.close();
+        // The background task will receive an error via the closed rx channel
+        // and emit auth-error, which the frontend handles gracefully.
+    }
+}
+
+/// Get the current auth status (logged-in profile or null).
 #[tauri::command]
 pub fn get_auth_status(state: State<'_, AppState>) -> Option<MinecraftProfile> {
     let auth = state.auth.lock().unwrap();
@@ -104,7 +148,6 @@ pub fn get_auth_status(state: State<'_, AppState>) -> Option<MinecraftProfile> {
 }
 
 /// Try to restore a previous session using the stored refresh token.
-/// Call this once on app startup.
 #[tauri::command]
 pub async fn try_restore_session(
     state: State<'_, AppState>,
@@ -129,6 +172,7 @@ pub async fn try_restore_session(
         &state.http_client,
         &msa.access_token,
         &msa.refresh_token,
+        false, // live.com refresh tokens — no "d=" prefix
     )
     .await
     {
@@ -153,7 +197,7 @@ pub async fn try_restore_session(
     Ok(Some(profile))
 }
 
-/// Log out: clear tokens from memory and keychain.
+/// Log out: clear in-memory tokens and keychain entry.
 #[tauri::command]
 pub fn logout(state: State<'_, AppState>) -> Result<(), GlowberryError> {
     {

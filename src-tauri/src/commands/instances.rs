@@ -21,3 +21,15 @@ pub fn delete_instance(state: State<'_, AppState>, id: String) -> Result<(), Glo
     let manager = state.instances.lock().unwrap();
     manager.delete(&id)
 }
+
+#[tauri::command]
+pub fn set_instance_memory(
+    state: State<'_, AppState>,
+    id: String,
+    memory_mb: u32,
+) -> Result<(), GlowberryError> {
+    let manager = state.instances.lock().unwrap();
+    let mut instance = manager.get(&id)?;
+    instance.memory_mb = memory_mb;
+    manager.save(&instance)
+}

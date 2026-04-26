@@ -29,21 +29,25 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(app_state)
         .invoke_handler(tauri::generate_handler![
+            // Auth
             commands::auth::start_login,
+            commands::auth::cancel_login,
             commands::auth::get_auth_status,
             commands::auth::try_restore_session,
             commands::auth::logout,
+            // Instances
             commands::instances::list_instances,
             commands::instances::get_instance,
             commands::instances::delete_instance,
-            commands::modpacks::search_modpacks,
-            commands::modpacks::get_project,
-            commands::modpacks::list_versions,
-            commands::file_locks::list_instance_files,
-            commands::file_locks::set_file_lock,
-            commands::file_locks::get_locked_files,
+            commands::instances::set_instance_memory,
+            // Install
             commands::install::install_modpack,
+            commands::install::install_starlight,
+            // GitHub update check
+            commands::github::check_starlight_update,
+            // Launch
             commands::launch::launch_instance,
+            // Settings
             commands::settings::get_settings,
             commands::settings::set_data_dir,
         ])

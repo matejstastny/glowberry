@@ -13,10 +13,9 @@
         "windows": [
             {
                 "title": "Glowberry",
-                "width": 1000,
-                "height": 650,
-                "minWidth": 800,
-                "minHeight": 550,
+                "width": 360,
+                "height": 460,
+                "resizable": false,
                 "decorations": true,
                 "titleBarStyle": "Overlay"
             }
