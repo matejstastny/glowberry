@@ -1,0 +1,109 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g. 0.2.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  publish-tauri:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: ""
+          - platform: windows-latest
+            args: ""
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version and tag
+        id: version
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+
+          VERSION="${VERSION#v}"
+
+          if [[ -z "$VERSION" ]]; then
+            echo "Unable to resolve version"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Sync app version in manifests
+        shell: bash
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          VERSION="$VERSION" node -e '
+            const fs = require("fs");
+            const version = process.env.VERSION;
+
+            const pkgPath = "package.json";
+            const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+            pkg.version = version;
+            fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 4) + "\n");
+
+            const tauriPath = "src-tauri/tauri.conf.json";
+            const tauri = JSON.parse(fs.readFileSync(tauriPath, "utf8"));
+            tauri.version = version;
+            fs.writeFileSync(tauriPath, JSON.stringify(tauri, null, 4) + "\n");
+
+            const cargoPath = "src-tauri/Cargo.toml";
+            const cargo = fs.readFileSync(cargoPath, "utf8");
+            const updated = cargo.replace(/^version = ".*"$/m, `version = "${version}"`);
+            if (updated === cargo) {
+                throw new Error("Could not update version in src-tauri/Cargo.toml");
+            }
+            fs.writeFileSync(cargoPath, updated);
+          '
+
+      - name: Build and upload bundles
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ steps.version.outputs.tag }}
+          releaseName: Glowberry v__VERSION__
+          releaseBody: |
+            Automated release for Glowberry v__VERSION__.
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}

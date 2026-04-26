@@ -49,6 +49,14 @@ npm run format:check     # Check formatting without changing files
 npm run check            # TypeScript type checking
 ```
 
+### Release builds
+
+- Distribution icons/background are sourced from [assets](assets).
+- CI release workflow is in [.github/workflows/release.yml](.github/workflows/release.yml).
+- Releases run on:
+	- tag push matching `v*` (example: `v0.2.0`)
+	- manual dispatch with a required `version` input (example: `0.2.0`)
+
 ### Project Structure
 
 ```
