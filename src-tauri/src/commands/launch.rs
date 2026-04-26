@@ -1,6 +1,6 @@
 use tauri::{AppHandle, State};
 
-use crate::error::LanternError;
+use crate::error::GlowberryError;
 use crate::minecraft::launch;
 use crate::state::AppState;
 
@@ -11,7 +11,7 @@ pub async fn launch_instance(
     instance_id: String,
     online: bool,
     username: Option<String>,
-) -> Result<(), LanternError> {
+) -> Result<(), GlowberryError> {
     let instance = {
         let instances = state.instances.lock().unwrap();
         instances.get(&instance_id)?
@@ -27,7 +27,7 @@ pub async fn launch_instance(
                 Some(tokens.minecraft_access_token.clone()),
             ),
             _ => {
-                return Err(LanternError::Launch(
+                return Err(GlowberryError::Launch(
                     "Not logged in — sign in or use offline mode".into(),
                 ));
             }

@@ -1,7 +1,7 @@
 use serde::Serialize;
 
 #[derive(Debug, thiserror::Error)]
-pub enum LanternError {
+pub enum GlowberryError {
     #[error("Network error: {0}")]
     Network(#[from] reqwest::Error),
 
@@ -37,20 +37,20 @@ pub enum LanternError {
     Other(String),
 }
 
-impl Serialize for LanternError {
+impl Serialize for GlowberryError {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
         use serde::ser::SerializeStruct;
-        let mut state = serializer.serialize_struct("LanternError", 2)?;
+        let mut state = serializer.serialize_struct("GlowberryError", 2)?;
         state.serialize_field("kind", &self.kind())?;
         state.serialize_field("message", &self.to_string())?;
         state.end()
     }
 }
 
-impl LanternError {
+impl GlowberryError {
     fn kind(&self) -> &'static str {
         match self {
             Self::Network(_) => "network",

@@ -34,12 +34,10 @@
     "rust-analyzer.checkOnSave": true,
     "rust-analyzer.check.command": "clippy",
 
-    "files.watcherExclude": {
-        "**/node_modules/**": true,
-        "**/src-tauri/target/**": true
-    },
-    "search.exclude": {
-        "**/node_modules/**": true,
-        "**/src-tauri/target/**": true
+    "files.exclude": {
+        "**/node_modules": true,
+        ".claude/": true,
+        "**/build": true,
+        "**/dist": true
     }
 }

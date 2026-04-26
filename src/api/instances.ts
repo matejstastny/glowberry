@@ -12,3 +12,7 @@ export async function getInstance(id: string): Promise<Instance> {
 export async function deleteInstance(id: string): Promise<void> {
     return invoke("delete_instance", { id });
 }
+
+export async function setInstanceMemory(id: string, memoryMb: number): Promise<void> {
+    return invoke("set_instance_memory", { id, memoryMb });
+}

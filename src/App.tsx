@@ -1,126 +1,574 @@
-import { useState } from "react";
-import NavBar from "@/components/NavBar";
-import OfflinePopup from "@/components/OfflinePopup";
-import Home from "@/pages/Home";
-import Browse from "@/pages/Browse";
-import Settings from "@/pages/Settings";
-import Login from "@/pages/Login";
-import { useAuth } from "@/hooks/useAuth";
-import { useGameStatus } from "@/hooks/useGameStatus";
+import { useState, useEffect } from "react";
+import { listen } from "@tauri-apps/api/event";
+import { tryRestoreSession } from "@/api/auth";
+import { listInstances } from "@/api/instances";
+import { installStarlight } from "@/api/install";
+import { checkStarlightUpdate } from "@/api/github";
 import { launchInstance } from "@/api/launch";
-import type { Page } from "@/types";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { showMainWindow } from "@/api/settings";
+import type {
+    Instance,
+    MinecraftProfile,
+    InstallProgress,
+    GameExitEvent,
+    GithubRelease,
+} from "@/types";
+import SettingsPanel from "./SettingsPanel";
+import styles from "./App.module.css";
+
+const MODPACK_SLUG = "starlightmodpack";
+
+type Phase = "loading" | "installing" | "updating" | "ready" | "error";
+
+/** Tauri errors arrive as { kind, message } objects — extract a readable string. */
+export function extractError(e: unknown): string {
+    if (e && typeof e === "object") {
+        const obj = e as Record<string, unknown>;
+        if (typeof obj.message === "string") return obj.message;
+    }
+    return String(e);
+}
+
+function describeProgress(p: InstallProgress): string {
+    switch (p.stage) {
+        case "downloading": {
+            if (p.bytes_total > 0) {
+                const done = (p.bytes_downloaded / 1024 / 1024).toFixed(1);
+                const total = (p.bytes_total / 1024 / 1024).toFixed(1);
+                return `Downloading... ${done} / ${total} MB`;
+            }
+            return "Downloading...";
+        }
+        case "installing_mods":
+            return p.total > 0 ? `Installing mods (${p.current}/${p.total})` : "Installing mods...";
+        case "parsing":
+            return "Reading modpack...";
+        case "extracting_overrides":
+            return "Extracting files...";
+        case "installing_loader":
+            return "Installing Fabric...";
+        case "finalizing":
+            return "Finishing up...";
+        default:
+            return p.message;
+    }
+}
 
 export default function App() {
-    const [page, setPage] = useState<Page>({ kind: "home" });
-    const [isOnline, setIsOnline] = useState(
-        () => localStorage.getItem("lantern_online_mode") !== "offline",
+    const [phase, setPhase] = useState<Phase>("loading");
+    const [instance, setInstance] = useState<Instance | null>(null);
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+    const [profile, setProfile] = useState<MinecraftProfile | null>(null);
+    const [isOnline, setIsOnline] = useState(() => localStorage.getItem("gb_online") !== "offline");
+    const [offlineUsername, setOfflineUsername] = useState(
+        () => localStorage.getItem("gb_username") ?? "",
     );
-    const [offlineUsername, setOfflineUsername] = useState<string | null>(
-        localStorage.getItem("lantern_offline_username"),
-    );
-    const [showOfflinePopup, setShowOfflinePopup] = useState(false);
-    const [pendingLaunchId, setPendingLaunchId] = useState<string | null>(null);
-    const [launchError, setLaunchError] = useState<string | null>(null);
-    const [refreshKey, setRefreshKey] = useState(0);
-    const [preparingInstance, setPreparingInstance] = useState<string | null>(null);
 
-    const { profile, setProfile, handleLogout } = useAuth();
-    const { running: runningInstance, crashLog } = useGameStatus();
+    const [gameRunning, setGameRunning] = useState(false);
+    const [preparing, setPreparing] = useState(false);
+    const [gameError, setGameError] = useState<string | null>(null);
 
-    function handleToggleOnline() {
-        setIsOnline((prev) => {
-            const next = !prev;
-            localStorage.setItem("lantern_online_mode", next ? "online" : "offline");
-            return next;
-        });
-    }
+    const [progress, setProgress] = useState<InstallProgress | null>(null);
+    // latest GitHub release — used for both first install and update
+    const [latestRelease, setLatestRelease] = useState<GithubRelease | null>(null);
+    const [updateAvailable, setUpdateAvailable] = useState(false);
+    const [checkingUpdate, setCheckingUpdate] = useState(false);
 
-    async function doLaunch(instanceId: string, username?: string) {
-        setLaunchError(null);
-        setPreparingInstance(instanceId);
+    const [showSettings, setShowSettings] = useState(false);
+
+    // Show the hidden main window once React has mounted.
+    useEffect(() => {
+        const appWindow = getCurrentWindow();
+
+        showMainWindow()
+            .then(async () => {
+                await appWindow.unminimize().catch(() => {});
+                await appWindow.setFocus().catch(() => {});
+
+                window.setTimeout(() => {
+                    void appWindow.setFocus().catch(() => {});
+                }, 120);
+            })
+            .catch(() => {});
+    }, []);
+
+    // Restore auth + init on startup
+    useEffect(() => {
+        tryRestoreSession()
+            .then(setProfile)
+            .catch(() => {});
+        loadInstance();
+    }, []);
+
+    // Game events
+    useEffect(() => {
+        let cancelled = false;
+        const unlisten: (() => void)[] = [];
+
+        listen<{ instance_id: string }>("game-started", () => {
+            if (!cancelled) {
+                setGameRunning(true);
+                setGameError(null);
+            }
+        }).then((u) => (cancelled ? u() : unlisten.push(u)));
+
+        listen<GameExitEvent>("game-exit", (e) => {
+            if (cancelled) return;
+            setGameRunning(false);
+            const { exit_code, crash_log } = e.payload;
+            if (exit_code !== null && exit_code !== 0) {
+                setGameError(crash_log ?? `Exited with code ${exit_code}`);
+            }
+        }).then((u) => (cancelled ? u() : unlisten.push(u)));
+
+        return () => {
+            cancelled = true;
+            unlisten.forEach((f) => f());
+        };
+    }, []);
+
+    // Install progress events
+    useEffect(() => {
+        let cancelled = false;
+        let unsub: (() => void) | null = null;
+
+        listen<InstallProgress>("install-progress", (e) => {
+            if (!cancelled) setProgress(e.payload);
+        }).then((u) => (cancelled ? u() : (unsub = u)));
+
+        return () => {
+            cancelled = true;
+            unsub?.();
+        };
+    }, []);
+
+    async function loadInstance() {
         try {
-            await launchInstance(instanceId, isOnline, username ?? undefined);
-        } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : String(e);
-            console.error("Launch failed:", msg);
-            setLaunchError(msg);
-        } finally {
-            setPreparingInstance(null);
+            const all = await listInstances();
+            const found = all.find((i) => i.modpack?.project_slug === MODPACK_SLUG);
+
+            if (found) {
+                setInstance(found);
+                setPhase("ready");
+                checkUpdate(found);
+            } else {
+                // First run — fetch latest release then install
+                setPhase("installing");
+                const release = await checkStarlightUpdate();
+                if (!release) {
+                    setErrorMsg("No release available yet. Check back soon!");
+                    setPhase("error");
+                    return;
+                }
+                setLatestRelease(release);
+                await doInstall(release);
+            }
+        } catch (e) {
+            setErrorMsg(extractError(e));
+            setPhase("error");
         }
     }
 
-    function handlePlay(instanceId: string) {
-        if (runningInstance || preparingInstance) return;
+    async function checkUpdate(inst: Instance) {
+        setCheckingUpdate(true);
+        try {
+            const release = await checkStarlightUpdate();
+            setLatestRelease(release);
+            const hasUpdate =
+                !!release && !!inst.modpack && release.tag !== inst.modpack.version_id;
+            setUpdateAvailable(hasUpdate);
+        } catch {
+            // silently ignore — network might be down
+        } finally {
+            setCheckingUpdate(false);
+        }
+    }
 
-        if (!isOnline && !offlineUsername) {
-            setPendingLaunchId(instanceId);
-            setShowOfflinePopup(true);
+    async function doInstall(release: GithubRelease) {
+        setProgress(null);
+        try {
+            const installed = await installStarlight(release);
+            setInstance(installed);
+            setPhase("ready");
+            setUpdateAvailable(false);
+        } catch (e) {
+            setErrorMsg(extractError(e));
+            setPhase("error");
+        }
+    }
+
+    async function handleUpdate() {
+        setPhase("updating");
+        setUpdateAvailable(false);
+        try {
+            const release = await checkStarlightUpdate();
+            if (!release) {
+                // No release available — go back to ready
+                setPhase("ready");
+                return;
+            }
+            setLatestRelease(release);
+            await doInstall(release);
+        } catch (e) {
+            setErrorMsg(extractError(e));
+            setPhase("error");
+        }
+    }
+
+    async function handlePlay() {
+        if (!instance || gameRunning || preparing) return;
+        if (!isOnline && !offlineUsername.trim()) {
+            setShowSettings(true);
             return;
         }
-
-        doLaunch(instanceId, isOnline ? undefined : offlineUsername ?? undefined);
-    }
-
-    function handleOfflineSubmit(username: string) {
-        localStorage.setItem("lantern_offline_username", username);
-        setOfflineUsername(username);
-        setShowOfflinePopup(false);
-        if (pendingLaunchId) {
-            doLaunch(pendingLaunchId, username);
-            setPendingLaunchId(null);
+        setPreparing(true);
+        setGameError(null);
+        try {
+            await launchInstance(
+                instance.id,
+                isOnline,
+                isOnline ? undefined : offlineUsername.trim(),
+            );
+        } catch (e) {
+            setGameError(extractError(e));
+        } finally {
+            setPreparing(false);
         }
     }
 
-    function handleLogoutAndNavigate() {
-        handleLogout();
-        if (page.kind === "login") {
-            setPage({ kind: "home" });
-        }
-    }
+    const busy = gameRunning || preparing;
+    const iconUrl = instance?.modpack?.icon_url;
+    const versionParts = [
+        instance?.modpack?.version_id,
+        instance?.minecraft_version,
+        instance?.loader && instance.loader !== "vanilla" ? instance.loader : null,
+    ].filter(Boolean);
 
     return (
-        <>
-            <NavBar
-                page={page}
-                navigate={setPage}
-                isOnline={isOnline}
-                onToggleOnline={handleToggleOnline}
-                profile={profile}
-                onLogout={handleLogoutAndNavigate}
-            />
-            <main className="main-content">
-                {page.kind === "home" && (
-                    <Home
-                        onPlay={handlePlay}
-                        runningInstance={runningInstance}
-                        preparingInstance={preparingInstance}
-                        launchError={launchError ?? crashLog}
-                        refreshKey={refreshKey}
-                    />
+        <div className={styles.app}>
+            <button
+                className={styles.settingsBtn}
+                onClick={() => setShowSettings((v) => !v)}
+                title={showSettings ? "Home" : "Settings"}
+            >
+                {showSettings ? <HomeIcon /> : <SettingsIcon />}
+            </button>
+
+            {/* Main content */}
+            <div className={styles.main}>
+                {phase === "loading" && (
+                    <div className={styles.center}>
+                        <Spinner size={28} />
+                    </div>
                 )}
-                {page.kind === "browse" && (
-                    <Browse
-                        navigate={setPage}
-                        onInstalled={() => setRefreshKey((k) => k + 1)}
-                    />
+
+                {phase === "error" && (
+                    <div className={styles.center}>
+                        <div className={styles.errorBox}>
+                            <div className={styles.errorTitle}>Something went wrong</div>
+                            <div className={styles.errorMsg}>{errorMsg}</div>
+                            <button className={styles.retryBtn} onClick={loadInstance}>
+                                Try again
+                            </button>
+                        </div>
+                    </div>
                 )}
-                {page.kind === "settings" && <Settings navigate={setPage} />}
-                {page.kind === "login" && (
-                    <Login
-                        navigate={setPage}
-                        onLoginComplete={(p) => {
-                            setProfile(p);
-                            setPage({ kind: "home" });
-                        }}
-                    />
+
+                {(phase === "installing" || phase === "updating") && (
+                    <div className={styles.center}>
+                        <div className={styles.installBox}>
+                            <Spinner size={32} />
+                            <div className={styles.installTitle}>
+                                {phase === "updating"
+                                    ? "Updating Starlight..."
+                                    : "Installing Starlight..."}
+                            </div>
+                            {progress && (
+                                <>
+                                    <div className={styles.installMsg}>
+                                        {describeProgress(progress)}
+                                    </div>
+                                    {progress.bytes_total > 0 && (
+                                        <div className={styles.progressBar}>
+                                            <div
+                                                className={styles.progressFill}
+                                                style={{
+                                                    width: `${Math.round((progress.bytes_downloaded / progress.bytes_total) * 100)}%`,
+                                                }}
+                                            />
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    </div>
                 )}
-            </main>
-            {showOfflinePopup && (
-                <OfflinePopup
-                    onSubmit={handleOfflineSubmit}
-                    onCancel={() => setShowOfflinePopup(false)}
+
+                {phase === "ready" && (
+                    <div className={styles.launcher}>
+                        {/* Modpack icon */}
+                        <div className={styles.iconWrap}>
+                            {iconUrl ? (
+                                <img className={styles.icon} src={iconUrl} alt="Starlight" />
+                            ) : (
+                                <div className={styles.iconPlaceholder}>
+                                    <GlowberryIcon />
+                                </div>
+                            )}
+                        </div>
+
+                        <div className={styles.packName}>Starlight</div>
+                        {versionParts.length > 0 && (
+                            <div className={styles.packVersion}>{versionParts.join(" · ")}</div>
+                        )}
+
+                        {/* Play button */}
+                        <button
+                            className={`${styles.playBtn} ${busy ? styles.playBusy : ""}`}
+                            onClick={handlePlay}
+                            disabled={busy}
+                        >
+                            {busy ? <Spinner size={15} /> : <PlayIcon />}
+                            {preparing ? "Preparing..." : gameRunning ? "Running" : "Play"}
+                        </button>
+
+                        {/* Online / Offline toggle */}
+                        <div className={styles.modeRow}>
+                            <button
+                                className={`${styles.modeBtn} ${isOnline ? styles.modeBtnActive : ""}`}
+                                onClick={() => {
+                                    setIsOnline(true);
+                                    localStorage.setItem("gb_online", "online");
+                                }}
+                            >
+                                Online
+                            </button>
+                            <button
+                                className={`${styles.modeBtn} ${!isOnline ? styles.modeBtnActive : ""}`}
+                                onClick={() => {
+                                    setIsOnline(false);
+                                    localStorage.setItem("gb_online", "offline");
+                                }}
+                            >
+                                Offline
+                            </button>
+                        </div>
+
+                        {/* Update button */}
+                        <button
+                            className={`${styles.updateBtn} ${updateAvailable ? styles.updateAvailable : ""}`}
+                            onClick={handleUpdate}
+                            disabled={busy || checkingUpdate}
+                            title={
+                                checkingUpdate
+                                    ? "Checking..."
+                                    : updateAvailable
+                                      ? `Update to ${latestRelease?.tag}`
+                                      : "Up to date"
+                            }
+                        >
+                            {checkingUpdate ? <Spinner size={12} /> : <UpdateIcon />}
+                            {checkingUpdate
+                                ? "Checking..."
+                                : updateAvailable
+                                  ? `Update to ${latestRelease?.tag}`
+                                  : "Up to date"}
+                        </button>
+
+                        {/* Game error */}
+                        <div className={styles.gameErrorSlot}>
+                            {gameError && (
+                                <div className={styles.gameError}>
+                                    <span className={styles.gameErrorText}>
+                                        {gameError.split("\n")[0]}
+                                    </span>
+                                    <button
+                                        className={styles.dismissBtn}
+                                        onClick={() => setGameError(null)}
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Bottom status bar */}
+            <div className={styles.bottomBar}>
+                {profile ? (
+                    <>
+                        <img
+                            className={styles.avatar}
+                            src={`https://mc-heads.net/avatar/${profile.id}/20`}
+                            alt={profile.name}
+                        />
+                        <span className={styles.accountName}>{profile.name}</span>
+                    </>
+                ) : (
+                    <span className={styles.accountName}>
+                        {isOnline ? "Not signed in" : offlineUsername || "No username set"}
+                    </span>
+                )}
+            </div>
+
+            {/* Settings overlay */}
+            {showSettings && (
+                <SettingsPanel
+                    profile={profile}
+                    isOnline={isOnline}
+                    offlineUsername={offlineUsername}
+                    instance={instance}
+                    onProfileChange={setProfile}
+                    onOnlineChange={(v) => {
+                        setIsOnline(v);
+                        localStorage.setItem("gb_online", v ? "online" : "offline");
+                    }}
+                    onUsernameChange={(u) => {
+                        setOfflineUsername(u);
+                        localStorage.setItem("gb_username", u);
+                    }}
+                    onInstanceChange={setInstance}
                 />
             )}
-        </>
+        </div>
+    );
+}
+
+// ── Inline icons ──────────────────────────────────────────────────────────────
+
+function PlayIcon() {
+    return (
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M6 4l15 8-15 8V4z" />
+        </svg>
+    );
+}
+
+function UpdateIcon() {
+    return (
+        <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        >
+            <polyline points="23 4 23 10 17 10" />
+            <polyline points="1 20 1 14 7 14" />
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+        </svg>
+    );
+}
+
+function HomeIcon() {
+    return (
+        <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        >
+            <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z" />
+            <path d="M9 21V12h6v9" />
+        </svg>
+    );
+}
+
+function SettingsIcon() {
+    return (
+        <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        >
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06-.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </svg>
+    );
+}
+
+export function Spinner({ size = 20 }: { size?: number }) {
+    return (
+        <svg
+            width={size}
+            height={size}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            style={{ animation: "spin 0.8s linear infinite" }}
+        >
+            <path d="M12 2a10 10 0 0 1 10 10" />
+        </svg>
+    );
+}
+
+function GlowberryIcon() {
+    return (
+        <svg width="56" height="56" viewBox="0 0 72 72" fill="none">
+            <path
+                d="M36 4 C36 4 34 18 30 26 C26 34 22 38 22 38"
+                stroke="#3a5a3a"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                fill="none"
+            />
+            <path
+                d="M36 4 C36 4 38 16 42 24 C46 32 50 36 50 36"
+                stroke="#3a5a3a"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                fill="none"
+            />
+            <ellipse
+                cx="24"
+                cy="20"
+                rx="6"
+                ry="3.5"
+                transform="rotate(-30 24 20)"
+                fill="#4a7a4a"
+                opacity="0.7"
+            />
+            <ellipse
+                cx="48"
+                cy="18"
+                rx="6"
+                ry="3.5"
+                transform="rotate(25 48 18)"
+                fill="#4a7a4a"
+                opacity="0.7"
+            />
+            <circle cx="36" cy="46" r="16" fill="#d4a24c" opacity="0.08" />
+            <circle cx="36" cy="46" r="13" fill="#c49238" />
+            <circle cx="36" cy="46" r="13" fill="url(#gbg)" />
+            <ellipse cx="32" cy="41" rx="4" ry="3" fill="#e8c06a" opacity="0.5" />
+            <path
+                d="M30 35 C30 35 33 37 36 37 C39 37 42 35 42 35 C42 35 40 33 36 33 C32 33 30 35 30 35Z"
+                fill="#5a8a5a"
+            />
+            <defs>
+                <radialGradient id="gbg" cx="0.4" cy="0.35" r="0.6">
+                    <stop offset="0%" stopColor="#e8c06a" />
+                    <stop offset="100%" stopColor="#b07828" />
+                </radialGradient>
+            </defs>
+        </svg>
     );
 }

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::error::LanternError;
+use crate::error::GlowberryError;
 
 const CLIENT_ID: &str = "00000000402b5328";
 const MSA_AUTHORIZE_URL: &str = "https://login.live.com/oauth20_authorize.srf";
@@ -80,7 +80,7 @@ pub fn build_auth_url() -> String {
 pub async fn exchange_auth_code(
     client: &reqwest::Client,
     code: &str,
-) -> Result<MsaTokenResponse, LanternError> {
+) -> Result<MsaTokenResponse, GlowberryError> {
     let resp = client
         .post(MSA_TOKEN_URL)
         .form(&[
@@ -97,18 +97,18 @@ pub async fn exchange_auth_code(
     let body = resp.text().await?;
     if !status.is_success() {
         eprintln!("[auth] MSA token exchange failed ({status}): {body}");
-        return Err(LanternError::Auth(format!(
+        return Err(GlowberryError::Auth(format!(
             "Microsoft token exchange failed ({status})"
         )));
     }
 
-    serde_json::from_str(&body).map_err(|e| LanternError::Auth(e.to_string()))
+    serde_json::from_str(&body).map_err(|e| GlowberryError::Auth(e.to_string()))
 }
 
 pub async fn refresh_msa_token(
     client: &reqwest::Client,
     refresh_token: &str,
-) -> Result<MsaTokenResponse, LanternError> {
+) -> Result<MsaTokenResponse, GlowberryError> {
     let resp = client
         .post(MSA_TOKEN_URL)
         .form(&[
@@ -123,23 +123,31 @@ pub async fn refresh_msa_token(
     let status = resp.status();
     let body = resp.text().await?;
     if !status.is_success() {
-        return Err(LanternError::Auth(format!(
+        return Err(GlowberryError::Auth(format!(
             "Failed to refresh token ({status})"
         )));
     }
 
-    serde_json::from_str(&body).map_err(|e| LanternError::Auth(e.to_string()))
+    serde_json::from_str(&body).map_err(|e| GlowberryError::Auth(e.to_string()))
 }
 
 async fn exchange_xbl_token(
     client: &reqwest::Client,
     msa_access_token: &str,
-) -> Result<(String, String), LanternError> {
+    // live.com tokens: use as-is; OAuth2 device-code tokens: prepend "d="
+    use_d_prefix: bool,
+) -> Result<(String, String), GlowberryError> {
+    let rps_ticket = if use_d_prefix {
+        format!("d={msa_access_token}")
+    } else {
+        msa_access_token.to_string()
+    };
+
     let body = serde_json::json!({
         "Properties": {
             "AuthMethod": "RPS",
             "SiteName": "user.auth.xboxlive.com",
-            "RpsTicket": msa_access_token
+            "RpsTicket": rps_ticket
         },
         "RelyingParty": "http://auth.xboxlive.com",
         "TokenType": "JWT"
@@ -155,20 +163,20 @@ async fn exchange_xbl_token(
     let text = resp.text().await?;
     if !status.is_success() {
         eprintln!("[auth] XBL failed ({status}): {text}");
-        return Err(LanternError::Auth(format!(
+        return Err(GlowberryError::Auth(format!(
             "Xbox Live auth failed ({status})"
         )));
     }
 
     let parsed: XblResponse =
-        serde_json::from_str(&text).map_err(|e| LanternError::Auth(e.to_string()))?;
+        serde_json::from_str(&text).map_err(|e| GlowberryError::Auth(e.to_string()))?;
 
     let uhs = parsed
         .display_claims
         .xui
         .first()
         .map(|x| x.uhs.clone())
-        .ok_or_else(|| LanternError::Auth("No user hash in XBL response".into()))?;
+        .ok_or_else(|| GlowberryError::Auth("No user hash in XBL response".into()))?;
 
     Ok((parsed.token, uhs))
 }
@@ -176,7 +184,7 @@ async fn exchange_xbl_token(
 async fn exchange_xsts_token(
     client: &reqwest::Client,
     xbl_token: &str,
-) -> Result<String, LanternError> {
+) -> Result<String, GlowberryError> {
     let body = serde_json::json!({
         "Properties": {
             "SandboxId": "RETAIL",
@@ -196,11 +204,11 @@ async fn exchange_xsts_token(
     let text = resp.text().await?;
     if !status.is_success() {
         eprintln!("[auth] XSTS failed ({status}): {text}");
-        return Err(LanternError::Auth(format!("XSTS auth failed ({status})")));
+        return Err(GlowberryError::Auth(format!("XSTS auth failed ({status})")));
     }
 
     let parsed: XstsResponse =
-        serde_json::from_str(&text).map_err(|e| LanternError::Auth(e.to_string()))?;
+        serde_json::from_str(&text).map_err(|e| GlowberryError::Auth(e.to_string()))?;
     Ok(parsed.token)
 }
 
@@ -208,7 +216,7 @@ async fn get_minecraft_token(
     client: &reqwest::Client,
     xsts_token: &str,
     user_hash: &str,
-) -> Result<String, LanternError> {
+) -> Result<String, GlowberryError> {
     let body = serde_json::json!({
         "identityToken": format!("XBL3.0 x={user_hash};{xsts_token}")
     });
@@ -223,20 +231,20 @@ async fn get_minecraft_token(
     let text = resp.text().await?;
     if !status.is_success() {
         eprintln!("[auth] MC auth failed ({status}): {text}");
-        return Err(LanternError::Auth(format!(
+        return Err(GlowberryError::Auth(format!(
             "Minecraft auth failed ({status})"
         )));
     }
 
     let parsed: MinecraftAuthResponse =
-        serde_json::from_str(&text).map_err(|e| LanternError::Auth(e.to_string()))?;
+        serde_json::from_str(&text).map_err(|e| GlowberryError::Auth(e.to_string()))?;
     Ok(parsed.access_token)
 }
 
 pub async fn get_minecraft_profile(
     client: &reqwest::Client,
     mc_access_token: &str,
-) -> Result<MinecraftProfile, LanternError> {
+) -> Result<MinecraftProfile, GlowberryError> {
     let resp = client
         .get("https://api.minecraftservices.com/minecraft/profile")
         .bearer_auth(mc_access_token)
@@ -247,13 +255,13 @@ pub async fn get_minecraft_profile(
     let text = resp.text().await?;
     if !status.is_success() {
         eprintln!("[auth] MC profile failed ({status}): {text}");
-        return Err(LanternError::Auth(format!(
+        return Err(GlowberryError::Auth(format!(
             "Failed to get Minecraft profile ({status})"
         )));
     }
 
     let parsed: MinecraftProfileResponse =
-        serde_json::from_str(&text).map_err(|e| LanternError::Auth(e.to_string()))?;
+        serde_json::from_str(&text).map_err(|e| GlowberryError::Auth(e.to_string()))?;
 
     Ok(MinecraftProfile {
         id: parsed.id,
@@ -262,13 +270,16 @@ pub async fn get_minecraft_profile(
 }
 
 /// Full exchange chain: MSA access token → Minecraft access token + profile.
+/// `use_d_prefix`: false for live.com tokens, true for OAuth2 device-code tokens.
 pub async fn full_token_exchange(
     client: &reqwest::Client,
     msa_access_token: &str,
     msa_refresh_token: &str,
-) -> Result<(AuthTokens, MinecraftProfile), LanternError> {
+    use_d_prefix: bool,
+) -> Result<(AuthTokens, MinecraftProfile), GlowberryError> {
     eprintln!("[auth] XBL exchange...");
-    let (xbl_token, user_hash) = exchange_xbl_token(client, msa_access_token).await?;
+    let (xbl_token, user_hash) =
+        exchange_xbl_token(client, msa_access_token, use_d_prefix).await?;
     eprintln!("[auth] XSTS exchange...");
     let xsts_token = exchange_xsts_token(client, &xbl_token).await?;
     eprintln!("[auth] Minecraft token...");

@@ -1,5 +1,5 @@
 pub mod auth;
-pub mod file_locks;
+pub mod github;
 pub mod install;
 pub mod instances;
 pub mod launch;

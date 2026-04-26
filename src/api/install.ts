@@ -1,6 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Instance } from "../types";
+import type { GithubRelease, Instance } from "../types";
 
 export async function installModpack(projectId: string, versionId: string): Promise<Instance> {
     return invoke("install_modpack", { projectId, versionId });
+}
+
+export async function installStarlight(release: GithubRelease): Promise<Instance> {
+    return invoke("install_starlight", {
+        mrpackUrl: release.mrpack_url,
+        mrpackName: release.mrpack_name,
+        mrpackSize: release.mrpack_size,
+        versionTag: release.tag,
+    });
 }

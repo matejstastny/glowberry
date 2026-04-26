@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use crate::error::LanternError;
+use crate::error::GlowberryError;
 
 const FABRIC_META_URL: &str = "https://meta.fabricmc.net/v2";
 
@@ -11,7 +11,7 @@ pub async fn install_fabric(
     data_dir: &Path,
     mc_version: &str,
     loader_version: &str,
-) -> Result<PathBuf, LanternError> {
+) -> Result<PathBuf, GlowberryError> {
     let version_id = format!("{mc_version}-fabric-{loader_version}");
     let version_dir = data_dir.join("versions").join(&version_id);
     let json_path = version_dir.join(format!("{version_id}.json"));
@@ -34,7 +34,7 @@ pub async fn install_fabric(
         .await?
         .error_for_status()
         .map_err(|e| {
-            LanternError::Other(format!(
+            GlowberryError::Other(format!(
                 "Failed to download Fabric profile for {mc_version}/{loader_version}: {e}"
             ))
         })?
@@ -43,7 +43,7 @@ pub async fn install_fabric(
 
     // Validate that it parses
     let _: super::version::VersionJson = serde_json::from_str(&text).map_err(|e| {
-        LanternError::Other(format!("Invalid Fabric profile JSON: {e}"))
+        GlowberryError::Other(format!("Invalid Fabric profile JSON: {e}"))
     })?;
 
     tokio::fs::create_dir_all(&version_dir).await?;

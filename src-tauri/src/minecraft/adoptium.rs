@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::error::LanternError;
+use crate::error::GlowberryError;
 use crate::minecraft::java::JavaInfo;
 
 /// Download a JRE from Adoptium and extract it to data_dir/java/.
@@ -8,7 +8,7 @@ pub async fn download_java(
     client: &reqwest::Client,
     data_dir: &Path,
     major_version: u32,
-) -> Result<JavaInfo, LanternError> {
+) -> Result<JavaInfo, GlowberryError> {
     let os = adoptium_os();
     let arch = adoptium_arch();
 
@@ -24,7 +24,7 @@ pub async fn download_java(
         .await?
         .error_for_status()
         .map_err(|e| {
-            LanternError::Java(format!(
+            GlowberryError::Java(format!(
                 "Failed to download Java {major_version} from Adoptium: {e}"
             ))
         })?;
@@ -45,7 +45,7 @@ pub async fn download_java(
         extract_tar_gz(&archive_path_clone, &extract_dir)
     })
     .await
-    .map_err(|e| LanternError::Java(format!("Extract task failed: {e}")))??;
+    .map_err(|e| GlowberryError::Java(format!("Extract task failed: {e}")))??;
 
     // Clean up archive
     let _ = tokio::fs::remove_file(&archive_path).await;
@@ -63,7 +63,7 @@ pub async fn download_java(
     };
 
     if !java_bin.exists() {
-        return Err(LanternError::Java(format!(
+        return Err(GlowberryError::Java(format!(
             "Java binary not found at {}",
             java_bin.display()
         )));
@@ -88,7 +88,7 @@ pub async fn download_java(
 fn extract_tar_gz(
     archive_path: &std::path::Path,
     extract_dir: &std::path::Path,
-) -> Result<String, LanternError> {
+) -> Result<String, GlowberryError> {
     let file = std::fs::File::open(archive_path)?;
     let decoder = flate2::read::GzDecoder::new(file);
     let mut archive = tar::Archive::new(decoder);
@@ -113,7 +113,7 @@ fn extract_tar_gz(
     }
 
     if top_dir.is_empty() {
-        return Err(LanternError::Java(
+        return Err(GlowberryError::Java(
             "Could not determine extracted directory name".into(),
         ));
     }

@@ -3,7 +3,7 @@ use std::path::Path;
 
 use serde::Deserialize;
 
-use crate::error::LanternError;
+use crate::error::GlowberryError;
 
 const VERSION_MANIFEST_URL: &str =
     "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
@@ -160,7 +160,7 @@ pub struct AssetObject {
 
 pub async fn fetch_version_manifest(
     client: &reqwest::Client,
-) -> Result<VersionManifest, LanternError> {
+) -> Result<VersionManifest, GlowberryError> {
     let manifest = client
         .get(VERSION_MANIFEST_URL)
         .send()
@@ -176,7 +176,7 @@ pub async fn fetch_version_json(
     data_dir: &Path,
     version_id: &str,
     url: &str,
-) -> Result<VersionJson, LanternError> {
+) -> Result<VersionJson, GlowberryError> {
     let version_dir = data_dir.join("versions").join(version_id);
     let json_path = version_dir.join(format!("{version_id}.json"));
 
@@ -201,7 +201,7 @@ pub async fn fetch_version_json(
 }
 
 /// Load a version JSON from a local path (e.g. Fabric profile JSON).
-pub async fn load_version_json(path: &Path) -> Result<VersionJson, LanternError> {
+pub async fn load_version_json(path: &Path) -> Result<VersionJson, GlowberryError> {
     let data = tokio::fs::read_to_string(path).await?;
     Ok(serde_json::from_str(&data)?)
 }
@@ -430,7 +430,7 @@ pub async fn fetch_asset_index(
     client: &reqwest::Client,
     data_dir: &Path,
     asset_ref: &AssetIndexRef,
-) -> Result<AssetIndex, LanternError> {
+) -> Result<AssetIndex, GlowberryError> {
     let index_dir = data_dir.join("assets").join("indexes");
     let index_path = index_dir.join(format!("{}.json", asset_ref.id));
 

@@ -1,4 +1,4 @@
-use crate::error::LanternError;
+use crate::error::GlowberryError;
 use crate::modrinth::types::*;
 
 const BASE_URL: &str = "https://api.modrinth.com/v2";
@@ -17,7 +17,7 @@ impl ModrinthApi {
         query: &str,
         limit: u32,
         offset: u32,
-    ) -> Result<SearchResult, LanternError> {
+    ) -> Result<SearchResult, GlowberryError> {
         let facets = r#"[["project_type:modpack"]]"#;
         let resp = self
             .client
@@ -36,7 +36,7 @@ impl ModrinthApi {
         Ok(resp)
     }
 
-    pub async fn get_project(&self, id_or_slug: &str) -> Result<Project, LanternError> {
+    pub async fn get_project(&self, id_or_slug: &str) -> Result<Project, GlowberryError> {
         let resp = self
             .client
             .get(format!("{BASE_URL}/project/{id_or_slug}"))
@@ -48,7 +48,7 @@ impl ModrinthApi {
         Ok(resp)
     }
 
-    pub async fn list_versions(&self, project_id: &str) -> Result<Vec<Version>, LanternError> {
+    pub async fn list_versions(&self, project_id: &str) -> Result<Vec<Version>, GlowberryError> {
         let resp = self
             .client
             .get(format!("{BASE_URL}/project/{project_id}/version"))
@@ -60,7 +60,7 @@ impl ModrinthApi {
         Ok(resp)
     }
 
-    pub async fn get_version(&self, version_id: &str) -> Result<Version, LanternError> {
+    pub async fn get_version(&self, version_id: &str) -> Result<Version, GlowberryError> {
         let resp = self
             .client
             .get(format!("{BASE_URL}/version/{version_id}"))

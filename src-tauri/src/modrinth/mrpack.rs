@@ -1,10 +1,10 @@
 use std::io::Read;
 use std::path::Path;
 
-use crate::error::LanternError;
+use crate::error::GlowberryError;
 use crate::modrinth::types::MrpackIndex;
 
-pub fn parse_mrpack(path: &Path) -> Result<MrpackIndex, LanternError> {
+pub fn parse_mrpack(path: &Path) -> Result<MrpackIndex, GlowberryError> {
     let file = std::fs::File::open(path)?;
     let mut archive = zip::ZipArchive::new(file)?;
 
@@ -20,7 +20,7 @@ pub fn extract_overrides(
     mrpack_path: &Path,
     target_dir: &Path,
     locked_files: &std::collections::HashSet<String>,
-) -> Result<Vec<String>, LanternError> {
+) -> Result<Vec<String>, GlowberryError> {
     let file = std::fs::File::open(mrpack_path)?;
     let mut archive = zip::ZipArchive::new(file)?;
     let mut extracted = Vec::new();

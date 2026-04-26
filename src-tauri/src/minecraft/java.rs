@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use crate::error::LanternError;
+use crate::error::GlowberryError;
 
 #[derive(Debug)]
 pub struct JavaInfo {
@@ -68,7 +68,7 @@ pub fn detect_all_java(data_dir: &Path) -> Vec<JavaInfo> {
         }
     }
 
-    // Check Lantern-managed Java (Adoptium downloads)
+    // Check Glowberry-managed Java (Adoptium downloads)
     let java_dir = data_dir.join("java");
     if let Ok(entries) = std::fs::read_dir(&java_dir) {
         for entry in entries.flatten() {
@@ -100,7 +100,7 @@ pub async fn ensure_java(
     client: &reqwest::Client,
     data_dir: &Path,
     minecraft_version: &str,
-) -> Result<JavaInfo, LanternError> {
+) -> Result<JavaInfo, GlowberryError> {
     let required = required_java_version(minecraft_version);
     let all = detect_all_java(data_dir);
 

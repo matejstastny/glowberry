@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::error::LanternError;
+use crate::error::GlowberryError;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Instance {
@@ -50,7 +50,7 @@ impl InstanceManager {
         Self { instances_dir }
     }
 
-    pub fn list(&self) -> Result<Vec<Instance>, LanternError> {
+    pub fn list(&self) -> Result<Vec<Instance>, GlowberryError> {
         let mut instances = Vec::new();
 
         if !self.instances_dir.exists() {
@@ -59,7 +59,7 @@ impl InstanceManager {
 
         for entry in std::fs::read_dir(&self.instances_dir)? {
             let entry = entry?;
-            let meta_path = entry.path().join("lantern_instance.json");
+            let meta_path = entry.path().join("glowberry_instance.json");
             if meta_path.exists() {
                 let data = std::fs::read_to_string(&meta_path)?;
                 let instance: Instance = serde_json::from_str(&data)?;
@@ -71,24 +71,24 @@ impl InstanceManager {
         Ok(instances)
     }
 
-    pub fn get(&self, id: &str) -> Result<Instance, LanternError> {
-        let meta_path = self.instances_dir.join(id).join("lantern_instance.json");
+    pub fn get(&self, id: &str) -> Result<Instance, GlowberryError> {
+        let meta_path = self.instances_dir.join(id).join("glowberry_instance.json");
         if !meta_path.exists() {
-            return Err(LanternError::Instance(format!("Instance not found: {id}")));
+            return Err(GlowberryError::Instance(format!("Instance not found: {id}")));
         }
         let data = std::fs::read_to_string(&meta_path)?;
         Ok(serde_json::from_str(&data)?)
     }
 
-    pub fn save(&self, instance: &Instance) -> Result<(), LanternError> {
+    pub fn save(&self, instance: &Instance) -> Result<(), GlowberryError> {
         let instance_dir = self.instances_dir.join(&instance.id);
         std::fs::create_dir_all(&instance_dir)?;
         let data = serde_json::to_string_pretty(instance)?;
-        std::fs::write(instance_dir.join("lantern_instance.json"), data)?;
+        std::fs::write(instance_dir.join("glowberry_instance.json"), data)?;
         Ok(())
     }
 
-    pub fn delete(&self, id: &str) -> Result<(), LanternError> {
+    pub fn delete(&self, id: &str) -> Result<(), GlowberryError> {
         let instance_dir = self.instances_dir.join(id);
         if instance_dir.exists() {
             std::fs::remove_dir_all(&instance_dir)?;

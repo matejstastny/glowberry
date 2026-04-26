@@ -7,7 +7,7 @@ use sha1::Sha1;
 use sha2::{Digest, Sha512};
 use tokio::sync::Semaphore;
 
-use crate::error::LanternError;
+use crate::error::GlowberryError;
 
 const MAX_CONCURRENT: usize = 10;
 
@@ -59,13 +59,13 @@ impl DownloadManager {
     }
 
     /// Download a file, verifying its hash. Overwrites if already exists.
-    pub async fn download_file(&self, task: &DownloadTask) -> Result<(), LanternError> {
+    pub async fn download_file(&self, task: &DownloadTask) -> Result<(), GlowberryError> {
         let _permit = self.semaphore.acquire().await.unwrap();
         self.download_inner(task).await
     }
 
     /// Download a file only if it doesn't already exist at the destination.
-    pub async fn download_if_missing(&self, task: &DownloadTask) -> Result<(), LanternError> {
+    pub async fn download_if_missing(&self, task: &DownloadTask) -> Result<(), GlowberryError> {
         if task.dest.exists() {
             return Ok(());
         }
@@ -77,7 +77,7 @@ impl DownloadManager {
         self.download_inner(task).await
     }
 
-    async fn download_inner(&self, task: &DownloadTask) -> Result<(), LanternError> {
+    async fn download_inner(&self, task: &DownloadTask) -> Result<(), GlowberryError> {
         if let Some(parent) = task.dest.parent() {
             tokio::fs::create_dir_all(parent).await?;
         }
@@ -131,7 +131,7 @@ impl DownloadManager {
             ExpectedHash::Sha512(expected) | ExpectedHash::Sha1(expected) => {
                 if &hash_hex != expected {
                     let _ = tokio::fs::remove_file(&part_path).await;
-                    return Err(LanternError::HashMismatch {
+                    return Err(GlowberryError::HashMismatch {
                         file: task.file_name.clone(),
                         expected: expected.clone(),
                         actual: hash_hex,

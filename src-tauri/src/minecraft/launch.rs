@@ -8,7 +8,7 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
 use crate::download::manager::{DownloadManager, DownloadTask, ExpectedHash};
-use crate::error::LanternError;
+use crate::error::GlowberryError;
 use crate::instance::manager::{Instance, ModLoader};
 use crate::state::AppState;
 
@@ -45,7 +45,7 @@ pub async fn launch_instance(
     auth_name: Option<String>,
     auth_uuid: Option<String>,
     auth_token: Option<String>,
-) -> Result<(), LanternError> {
+) -> Result<(), GlowberryError> {
     let client = &state.http_client;
     let data_dir = &state.data_dir;
 
@@ -61,7 +61,7 @@ pub async fn launch_instance(
         .iter()
         .find(|v| v.id == instance.minecraft_version)
         .ok_or_else(|| {
-            LanternError::Launch(format!(
+            GlowberryError::Launch(format!(
                 "Minecraft version {} not found in manifest",
                 instance.minecraft_version
             ))
@@ -142,7 +142,7 @@ pub async fn launch_instance(
 
     let mut subs: HashMap<&str, String> = HashMap::new();
     subs.insert("natives_directory", natives_dir.to_string_lossy().to_string());
-    subs.insert("launcher_name", "Lantern".into());
+    subs.insert("launcher_name", "Glowberry".into());
     subs.insert("launcher_version", "0.1.0".into());
     subs.insert("classpath", classpath);
     subs.insert("auth_player_name", player_name);
@@ -199,7 +199,7 @@ pub async fn launch_instance(
     cmd.stderr(std::process::Stdio::piped());
 
     let mut child = cmd.spawn().map_err(|e| {
-        LanternError::Launch(format!("Failed to start Minecraft: {e}"))
+        GlowberryError::Launch(format!("Failed to start Minecraft: {e}"))
     })?;
 
     let instance_id = instance.id.clone();
@@ -304,7 +304,7 @@ async fn download_client_jar(
     data_dir: &Path,
     version_id: &str,
     version_json: &VersionJson,
-) -> Result<PathBuf, LanternError> {
+) -> Result<PathBuf, GlowberryError> {
     let jar_path = data_dir
         .join("versions")
         .join(version_id)
@@ -317,7 +317,7 @@ async fn download_client_jar(
     let downloads = version_json
         .downloads
         .as_ref()
-        .ok_or_else(|| LanternError::Launch("Version JSON has no downloads section".into()))?;
+        .ok_or_else(|| GlowberryError::Launch("Version JSON has no downloads section".into()))?;
 
     eprintln!("[launch] Downloading client JAR...");
     let dm = DownloadManager::new(client.clone());
@@ -337,7 +337,7 @@ async fn download_libraries(
     client: &reqwest::Client,
     data_dir: &Path,
     version_json: &VersionJson,
-) -> Result<Vec<PathBuf>, LanternError> {
+) -> Result<Vec<PathBuf>, GlowberryError> {
     let libraries = filter_libraries(&version_json.libraries);
     let libraries_dir = data_dir.join("libraries");
 
@@ -404,7 +404,7 @@ async fn download_libraries(
     for handle in handles {
         handle
             .await
-            .map_err(|e| LanternError::Launch(format!("Library download panicked: {e}")))??;
+            .map_err(|e| GlowberryError::Launch(format!("Library download panicked: {e}")))??;
     }
 
     Ok(paths)
@@ -414,7 +414,7 @@ async fn download_assets(
     client: &reqwest::Client,
     data_dir: &Path,
     asset_ref: &AssetIndexRef,
-) -> Result<(), LanternError> {
+) -> Result<(), GlowberryError> {
     let index = fetch_asset_index(client, data_dir, asset_ref).await?;
 
     let objects_dir = data_dir.join("assets").join("objects");
@@ -455,7 +455,7 @@ async fn download_assets(
     for handle in handles {
         handle
             .await
-            .map_err(|e| LanternError::Launch(format!("Asset download panicked: {e}")))??;
+            .map_err(|e| GlowberryError::Launch(format!("Asset download panicked: {e}")))??;
     }
 
     Ok(())
