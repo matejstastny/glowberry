@@ -23,23 +23,18 @@ pub struct AppState {
     pub instances: Mutex<InstanceManager>,
     pub auth: Mutex<AuthState>,
     pub data_dir: PathBuf,
-    pub config_dir: PathBuf,
-    pub default_data_dir: PathBuf,
 }
 
 impl AppState {
-    pub fn new(data_dir: PathBuf, config_dir: PathBuf, default_data_dir: PathBuf) -> Self {
+    pub fn new(data_dir: PathBuf) -> Self {
         std::fs::create_dir_all(&data_dir).expect("Failed to create data directory");
         std::fs::create_dir_all(data_dir.join("instances"))
             .expect("Failed to create instances dir");
-        std::fs::create_dir_all(data_dir.join("versions"))
-            .expect("Failed to create versions dir");
-        std::fs::create_dir_all(data_dir.join("assets"))
-            .expect("Failed to create assets dir");
+        std::fs::create_dir_all(data_dir.join("versions")).expect("Failed to create versions dir");
+        std::fs::create_dir_all(data_dir.join("assets")).expect("Failed to create assets dir");
         std::fs::create_dir_all(data_dir.join("libraries"))
             .expect("Failed to create libraries dir");
-        std::fs::create_dir_all(data_dir.join("java"))
-            .expect("Failed to create java dir");
+        std::fs::create_dir_all(data_dir.join("java")).expect("Failed to create java dir");
 
         Self {
             http_client: reqwest::Client::builder()
@@ -49,8 +44,6 @@ impl AppState {
             instances: Mutex::new(InstanceManager::new(data_dir.join("instances"))),
             auth: Mutex::new(AuthState::new()),
             data_dir,
-            config_dir,
-            default_data_dir,
         }
     }
 }

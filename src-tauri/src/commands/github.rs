@@ -55,7 +55,7 @@ pub async fn check_starlight_update(
     let asset = match assets.iter().find(|a| {
         a["name"]
             .as_str()
-            .map_or(false, |n| n.ends_with("-client.mrpack"))
+            .is_some_and(|n| n.ends_with("-client.mrpack"))
     }) {
         Some(a) => a,
         None => return Ok(None),

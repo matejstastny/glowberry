@@ -22,9 +22,8 @@ pub async fn install_fabric(
         return Ok(json_path);
     }
 
-    let url = format!(
-        "{FABRIC_META_URL}/versions/loader/{mc_version}/{loader_version}/profile/json"
-    );
+    let url =
+        format!("{FABRIC_META_URL}/versions/loader/{mc_version}/{loader_version}/profile/json");
 
     eprintln!("[fabric] Downloading profile: {version_id}");
 
@@ -42,9 +41,8 @@ pub async fn install_fabric(
         .await?;
 
     // Validate that it parses
-    let _: super::version::VersionJson = serde_json::from_str(&text).map_err(|e| {
-        GlowberryError::Other(format!("Invalid Fabric profile JSON: {e}"))
-    })?;
+    let _: super::version::VersionJson = serde_json::from_str(&text)
+        .map_err(|e| GlowberryError::Other(format!("Invalid Fabric profile JSON: {e}")))?;
 
     tokio::fs::create_dir_all(&version_dir).await?;
     tokio::fs::write(&json_path, &text).await?;

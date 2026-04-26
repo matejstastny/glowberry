@@ -24,7 +24,10 @@ pub fn detect_all_java(data_dir: &Path) -> Vec<JavaInfo> {
 
     // Check system java
     if let Some(info) = probe_java(&PathBuf::from("java")) {
-        if !found.iter().any(|j: &JavaInfo| j.major_version == info.major_version) {
+        if !found
+            .iter()
+            .any(|j: &JavaInfo| j.major_version == info.major_version)
+        {
             found.push(info);
         }
     }

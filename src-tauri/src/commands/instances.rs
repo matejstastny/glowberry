@@ -11,18 +11,6 @@ pub fn list_instances(state: State<'_, AppState>) -> Result<Vec<Instance>, Glowb
 }
 
 #[tauri::command]
-pub fn get_instance(state: State<'_, AppState>, id: String) -> Result<Instance, GlowberryError> {
-    let manager = state.instances.lock().unwrap();
-    manager.get(&id)
-}
-
-#[tauri::command]
-pub fn delete_instance(state: State<'_, AppState>, id: String) -> Result<(), GlowberryError> {
-    let manager = state.instances.lock().unwrap();
-    manager.delete(&id)
-}
-
-#[tauri::command]
 pub fn set_instance_memory(
     state: State<'_, AppState>,
     id: String,

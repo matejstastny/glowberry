@@ -41,11 +41,10 @@ pub async fn download_java(
     let archive_path_clone = archive_path.clone();
 
     // Extract in a blocking task since tar/flate2 are synchronous
-    let extracted_name = tokio::task::spawn_blocking(move || {
-        extract_tar_gz(&archive_path_clone, &extract_dir)
-    })
-    .await
-    .map_err(|e| GlowberryError::Java(format!("Extract task failed: {e}")))??;
+    let extracted_name =
+        tokio::task::spawn_blocking(move || extract_tar_gz(&archive_path_clone, &extract_dir))
+            .await
+            .map_err(|e| GlowberryError::Java(format!("Extract task failed: {e}")))??;
 
     // Clean up archive
     let _ = tokio::fs::remove_file(&archive_path).await;
@@ -76,7 +75,10 @@ pub async fn download_java(
         let _ = std::fs::set_permissions(&java_bin, std::fs::Permissions::from_mode(0o755));
     }
 
-    eprintln!("[java] JRE {major_version} installed at {}", extracted_dir.display());
+    eprintln!(
+        "[java] JRE {major_version} installed at {}",
+        extracted_dir.display()
+    );
 
     Ok(JavaInfo {
         path: java_bin,

@@ -2,7 +2,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use futures::StreamExt;
-use serde::Serialize;
 use sha1::Sha1;
 use sha2::{Digest, Sha512};
 use tokio::sync::Semaphore;
@@ -10,25 +9,6 @@ use tokio::sync::Semaphore;
 use crate::error::GlowberryError;
 
 const MAX_CONCURRENT: usize = 10;
-
-#[derive(Debug, Clone, Serialize)]
-pub struct DownloadProgress {
-    pub file_name: String,
-    pub bytes_downloaded: u64,
-    pub total_bytes: u64,
-    pub files_completed: u32,
-    pub files_total: u32,
-    pub status: DownloadStatus,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum DownloadStatus {
-    Downloading,
-    Verifying,
-    Complete,
-    Failed,
-}
 
 #[derive(Debug, Clone)]
 pub enum ExpectedHash {
@@ -40,7 +20,6 @@ pub enum ExpectedHash {
 pub struct DownloadTask {
     pub url: String,
     pub dest: PathBuf,
-    pub expected_size: u64,
     pub expected_hash: ExpectedHash,
     pub file_name: String,
 }
@@ -61,19 +40,6 @@ impl DownloadManager {
     /// Download a file, verifying its hash. Overwrites if already exists.
     pub async fn download_file(&self, task: &DownloadTask) -> Result<(), GlowberryError> {
         let _permit = self.semaphore.acquire().await.unwrap();
-        self.download_inner(task).await
-    }
-
-    /// Download a file only if it doesn't already exist at the destination.
-    pub async fn download_if_missing(&self, task: &DownloadTask) -> Result<(), GlowberryError> {
-        if task.dest.exists() {
-            return Ok(());
-        }
-        let _permit = self.semaphore.acquire().await.unwrap();
-        // Re-check after acquiring permit (another task may have downloaded it)
-        if task.dest.exists() {
-            return Ok(());
-        }
         self.download_inner(task).await
     }
 

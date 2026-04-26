@@ -2,9 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import QRCode from "qrcode";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { startLogin, cancelLogin, logout } from "@/api/auth";
-import { getSettings, setDataDir } from "@/api/settings";
 import { setInstanceMemory } from "@/api/instances";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { Instance, MinecraftProfile } from "@/types";
 import { Spinner, extractError } from "./App";
@@ -44,23 +42,10 @@ export default function SettingsPanel({
     onUsernameChange,
     onInstanceChange,
 }: Props) {
-    const [dataDir, setDataDirState] = useState("");
-    const [defaultDataDir, setDefaultDataDir] = useState("");
-    const [hasCustomDir, setHasCustomDir] = useState(false);
     const [loginState, setLoginState] = useState<LoginState>({ step: "idle" });
     const [localUsername, setLocalUsername] = useState(offlineUsername);
 
     const unlistenRef = useRef<UnlistenFn[]>([]);
-
-    useEffect(() => {
-        getSettings()
-            .then((s) => {
-                setDataDirState(s.data_dir);
-                setDefaultDataDir(s.default_data_dir);
-                setHasCustomDir(!!s.data_dir_override);
-            })
-            .catch(() => {});
-    }, []);
 
     // Clean up event listeners on unmount
     useEffect(() => {
@@ -73,11 +58,10 @@ export default function SettingsPanel({
     }
 
     async function handleSignIn() {
-        setLoginState({ step: "idle" }); // reset any previous error
+        setLoginState({ step: "idle" });
         try {
             const authUrl = await startLogin();
 
-            // Generate QR code from the auth URL
             const qrDataUrl = await QRCode.toDataURL(authUrl, {
                 width: 180,
                 margin: 2,
@@ -86,7 +70,6 @@ export default function SettingsPanel({
 
             setLoginState({ step: "waiting", authUrl, qrDataUrl });
 
-            // Listen for auth events emitted by the background task
             const unlistenComplete = await listen<{ profile: MinecraftProfile }>(
                 "auth-complete",
                 (event) => {
@@ -97,13 +80,10 @@ export default function SettingsPanel({
                 },
             );
 
-            const unlistenError = await listen<{ message: string }>(
-                "auth-error",
-                (event) => {
-                    stopListening();
-                    setLoginState({ step: "error", message: event.payload.message });
-                },
-            );
+            const unlistenError = await listen<{ message: string }>("auth-error", (event) => {
+                stopListening();
+                setLoginState({ step: "error", message: event.payload.message });
+            });
 
             unlistenRef.current = [unlistenComplete, unlistenError];
         } catch (e) {
@@ -120,21 +100,6 @@ export default function SettingsPanel({
     async function handleSignOut() {
         await logout();
         onProfileChange(null);
-    }
-
-    async function handlePickDir() {
-        const dir = await openDialog({ directory: true, title: "Choose data folder" });
-        if (dir) {
-            await setDataDir(dir);
-            setDataDirState(dir);
-            setHasCustomDir(true);
-        }
-    }
-
-    async function handleResetDir() {
-        await setDataDir(null);
-        setDataDirState(defaultDataDir);
-        setHasCustomDir(false);
     }
 
     async function handleMemoryChange(mb: number) {
@@ -187,26 +152,18 @@ export default function SettingsPanel({
                                     <Spinner size={13} />
                                     <span>Waiting for sign-in...</span>
                                 </div>
-                                <button
-                                    className={styles.cancelBtn}
-                                    onClick={handleCancelLogin}
-                                >
+                                <button className={styles.cancelBtn} onClick={handleCancelLogin}>
                                     Cancel
                                 </button>
                             </div>
                         ) : (
                             <>
-                                <button
-                                    className={styles.signInBtn}
-                                    onClick={handleSignIn}
-                                >
+                                <button className={styles.signInBtn} onClick={handleSignIn}>
                                     <MicrosoftIcon />
                                     Sign in with Microsoft
                                 </button>
                                 {loginState.step === "error" && (
-                                    <div className={styles.loginError}>
-                                        {loginState.message}
-                                    </div>
+                                    <div className={styles.loginError}>{loginState.message}</div>
                                 )}
                             </>
                         )}
@@ -256,35 +213,6 @@ export default function SettingsPanel({
                         </div>
                     </section>
                 )}
-
-                {/* ── Data directory ──────────────────────────── */}
-                <section className={styles.section}>
-                    <div className={styles.label}>Data Directory</div>
-                    <div className={styles.card}>
-                        <code className={styles.dirPath}>{dataDir}</code>
-                        <div className={styles.dirActions}>
-                            <button
-                                className={styles.smallBtn}
-                                onClick={() => openUrl(`file://${dataDir}`)}
-                            >
-                                Open
-                            </button>
-                            <button className={styles.smallBtn} onClick={handlePickDir}>
-                                Change
-                            </button>
-                            {hasCustomDir && (
-                                <button className={styles.smallBtn} onClick={handleResetDir}>
-                                    Reset
-                                </button>
-                            )}
-                        </div>
-                        {hasCustomDir && (
-                            <div className={styles.dirNote}>
-                                Restart Glowberry for changes to take effect
-                            </div>
-                        )}
-                    </div>
-                </section>
             </div>
         </div>
     );

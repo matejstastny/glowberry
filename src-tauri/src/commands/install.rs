@@ -5,16 +5,6 @@ use crate::instance::manager::Instance;
 use crate::minecraft::install;
 use crate::state::AppState;
 
-#[tauri::command]
-pub async fn install_modpack(
-    app: AppHandle,
-    state: State<'_, AppState>,
-    project_id: String,
-    version_id: String,
-) -> Result<Instance, GlowberryError> {
-    install::install_modpack(app, &state, project_id, version_id).await
-}
-
 /// Install (or update in place) the Starlight modpack from a GitHub release URL.
 #[tauri::command]
 pub async fn install_starlight(
@@ -35,7 +25,7 @@ pub async fn install_starlight(
             .find(|i| {
                 i.modpack
                     .as_ref()
-                    .map_or(false, |m| m.project_slug == "starlightmodpack")
+                    .is_some_and(|m| m.project_slug == "starlightmodpack")
             })
             .map(|i| i.id)
     };

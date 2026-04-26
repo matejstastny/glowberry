@@ -74,7 +74,9 @@ impl InstanceManager {
     pub fn get(&self, id: &str) -> Result<Instance, GlowberryError> {
         let meta_path = self.instances_dir.join(id).join("glowberry_instance.json");
         if !meta_path.exists() {
-            return Err(GlowberryError::Instance(format!("Instance not found: {id}")));
+            return Err(GlowberryError::Instance(format!(
+                "Instance not found: {id}"
+            )));
         }
         let data = std::fs::read_to_string(&meta_path)?;
         Ok(serde_json::from_str(&data)?)
@@ -86,21 +88,5 @@ impl InstanceManager {
         let data = serde_json::to_string_pretty(instance)?;
         std::fs::write(instance_dir.join("glowberry_instance.json"), data)?;
         Ok(())
-    }
-
-    pub fn delete(&self, id: &str) -> Result<(), GlowberryError> {
-        let instance_dir = self.instances_dir.join(id);
-        if instance_dir.exists() {
-            std::fs::remove_dir_all(&instance_dir)?;
-        }
-        Ok(())
-    }
-
-    pub fn instance_dir(&self, id: &str) -> PathBuf {
-        self.instances_dir.join(id)
-    }
-
-    pub fn minecraft_dir(&self, id: &str) -> PathBuf {
-        self.instances_dir.join(id).join(".minecraft")
     }
 }

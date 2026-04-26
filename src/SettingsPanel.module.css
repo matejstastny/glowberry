@@ -196,30 +196,6 @@
     outline: none;
 }
 
-/* ── Data directory ─────────────────────────────────────────── */
-
-.dirPath {
-    display: block;
-    font-size: 11px;
-    color: var(--text-muted);
-    word-break: break-all;
-    font-family: monospace;
-    line-height: 1.5;
-}
-
-.dirActions {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-}
-
-.dirNote {
-    font-size: 11px;
-    color: var(--text-muted);
-    font-style: italic;
-    line-height: 1.4;
-}
-
 /* ── Shared small button ────────────────────────────────────── */
 
 .smallBtn {

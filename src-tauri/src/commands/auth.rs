@@ -40,36 +40,35 @@ pub async fn start_login(
     let (tx, rx) = tokio::sync::oneshot::channel::<Result<String, String>>();
     let tx = std::sync::Mutex::new(Some(tx));
 
-    let _window =
-        WebviewWindowBuilder::new(&app, "auth-login", WebviewUrl::External(parsed_url))
-            .title("Sign in to Microsoft — Glowberry")
-            .inner_size(480.0, 640.0)
-            .resizable(false)
-            .on_navigation(move |url| {
-                if !url.as_str().starts_with(REDIRECT_URI) {
-                    return true; // allow
-                }
-                let result = if let Some(code) = url
+    let _window = WebviewWindowBuilder::new(&app, "auth-login", WebviewUrl::External(parsed_url))
+        .title("Sign in to Microsoft — Glowberry")
+        .inner_size(480.0, 640.0)
+        .resizable(false)
+        .on_navigation(move |url| {
+            if !url.as_str().starts_with(REDIRECT_URI) {
+                return true; // allow
+            }
+            let result = if let Some(code) = url
+                .query_pairs()
+                .find(|(k, _)| k == "code")
+                .map(|(_, v)| v.to_string())
+            {
+                Ok(code)
+            } else {
+                let desc = url
                     .query_pairs()
-                    .find(|(k, _)| k == "code")
+                    .find(|(k, _)| k == "error_description")
                     .map(|(_, v)| v.to_string())
-                {
-                    Ok(code)
-                } else {
-                    let desc = url
-                        .query_pairs()
-                        .find(|(k, _)| k == "error_description")
-                        .map(|(_, v)| v.to_string())
-                        .unwrap_or_else(|| "Login was cancelled".to_string());
-                    Err(desc)
-                };
-                if let Some(tx) = tx.lock().unwrap().take() {
-                    let _ = tx.send(result);
-                }
-                false // block the redirect page itself
-            })
-            .build()
-            .map_err(|e| GlowberryError::Auth(format!("Failed to open login window: {e}")))?;
+                    .unwrap_or_else(|| "Login was cancelled".to_string());
+                Err(desc)
+            };
+            if let Some(tx) = tx.lock().unwrap().take() {
+                let _ = tx.send(result);
+            }
+            false // block the redirect page itself
+        })
+        .build()
+        .map_err(|e| GlowberryError::Auth(format!("Failed to open login window: {e}")))?;
 
     // Finish the auth flow in a background task so this command returns immediately
     let http_client = state.http_client.clone();
@@ -119,9 +118,12 @@ pub async fn start_login(
             }
             Err(e) => {
                 eprintln!("[auth] background login failed: {e}");
-                let _ = app_bg.emit("auth-error", AuthError {
-                    message: e.to_string(),
-                });
+                let _ = app_bg.emit(
+                    "auth-error",
+                    AuthError {
+                        message: e.to_string(),
+                    },
+                );
             }
         }
     });

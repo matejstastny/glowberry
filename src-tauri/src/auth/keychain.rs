@@ -18,9 +18,7 @@ pub fn load_refresh_token() -> Result<Option<String>, GlowberryError> {
     match entry.get_password() {
         Ok(token) => Ok(Some(token)),
         Err(keyring::Error::NoEntry) => Ok(None),
-        Err(e) => Err(GlowberryError::Auth(format!(
-            "Failed to load token: {e}"
-        ))),
+        Err(e) => Err(GlowberryError::Auth(format!("Failed to load token: {e}"))),
     }
 }
 
@@ -30,8 +28,6 @@ pub fn delete_refresh_token() -> Result<(), GlowberryError> {
     match entry.delete_credential() {
         Ok(()) => Ok(()),
         Err(keyring::Error::NoEntry) => Ok(()),
-        Err(e) => Err(GlowberryError::Auth(format!(
-            "Failed to delete token: {e}"
-        ))),
+        Err(e) => Err(GlowberryError::Auth(format!("Failed to delete token: {e}"))),
     }
 }

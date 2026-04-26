@@ -278,8 +278,7 @@ pub async fn full_token_exchange(
     use_d_prefix: bool,
 ) -> Result<(AuthTokens, MinecraftProfile), GlowberryError> {
     eprintln!("[auth] XBL exchange...");
-    let (xbl_token, user_hash) =
-        exchange_xbl_token(client, msa_access_token, use_d_prefix).await?;
+    let (xbl_token, user_hash) = exchange_xbl_token(client, msa_access_token, use_d_prefix).await?;
     eprintln!("[auth] XSTS exchange...");
     let xsts_token = exchange_xsts_token(client, &xbl_token).await?;
     eprintln!("[auth] Minecraft token...");

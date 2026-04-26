@@ -12,23 +12,13 @@ const VERSION_MANIFEST_URL: &str =
 
 #[derive(Debug, Deserialize)]
 pub struct VersionManifest {
-    pub latest: LatestVersions,
     pub versions: Vec<ManifestEntry>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct LatestVersions {
-    pub release: String,
-    pub snapshot: String,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct ManifestEntry {
     pub id: String,
-    #[serde(rename = "type")]
-    pub version_type: String,
     pub url: String,
-    pub sha1: String,
 }
 
 // -- Individual version JSON --
@@ -48,8 +38,6 @@ pub struct VersionJson {
     pub arguments: Option<Arguments>,
     #[serde(default)]
     pub minecraft_arguments: Option<String>,
-    #[serde(default)]
-    pub inherits_from: Option<String>,
     #[serde(rename = "type", default)]
     pub version_type: String,
 }
@@ -62,7 +50,6 @@ pub struct VersionDownloads {
 #[derive(Debug, Clone, Deserialize)]
 pub struct DownloadEntry {
     pub sha1: String,
-    pub size: u64,
     pub url: String,
 }
 
@@ -70,10 +57,7 @@ pub struct DownloadEntry {
 #[serde(rename_all = "camelCase")]
 pub struct AssetIndexRef {
     pub id: String,
-    pub sha1: String,
-    pub size: u64,
     pub url: String,
-    pub total_size: u64,
 }
 
 // -- Libraries --
@@ -83,14 +67,12 @@ pub struct Library {
     pub name: String,
     pub downloads: Option<LibraryDownloads>,
     pub rules: Option<Vec<Rule>>,
-    pub natives: Option<HashMap<String, String>>,
     pub url: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct LibraryDownloads {
     pub artifact: Option<LibraryArtifact>,
-    pub classifiers: Option<HashMap<String, LibraryArtifact>>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -113,7 +95,6 @@ pub struct Rule {
 #[derive(Debug, Clone, Deserialize)]
 pub struct OsRule {
     pub name: Option<String>,
-    pub arch: Option<String>,
 }
 
 // -- Arguments --
@@ -293,7 +274,7 @@ fn library_allowed(rules: &[Rule]) -> bool {
         }
 
         let os_matches = match &rule.os {
-            Some(os_rule) => os_rule.name.as_deref().map_or(true, |name| name == os),
+            Some(os_rule) => os_rule.name.as_deref().is_none_or(|name| name == os),
             None => true,
         };
 
@@ -347,10 +328,7 @@ fn argument_allowed(rules: &[Rule]) -> bool {
 }
 
 /// Resolve JVM arguments from a version JSON.
-pub fn resolve_jvm_arguments(
-    version: &VersionJson,
-    subs: &HashMap<&str, String>,
-) -> Vec<String> {
+pub fn resolve_jvm_arguments(version: &VersionJson, subs: &HashMap<&str, String>) -> Vec<String> {
     let mut args = Vec::new();
 
     if let Some(ref arguments) = version.arguments {
@@ -366,10 +344,7 @@ pub fn resolve_jvm_arguments(
 }
 
 /// Resolve game arguments from a version JSON.
-pub fn resolve_game_arguments(
-    version: &VersionJson,
-    subs: &HashMap<&str, String>,
-) -> Vec<String> {
+pub fn resolve_game_arguments(version: &VersionJson, subs: &HashMap<&str, String>) -> Vec<String> {
     let mut args = Vec::new();
 
     if let Some(ref arguments) = version.arguments {
@@ -418,10 +393,7 @@ fn default_jvm_args(subs: &HashMap<&str, String>) -> Vec<String> {
         "-cp",
         "${classpath}",
     ];
-    templates
-        .iter()
-        .map(|t| substitute(t, subs))
-        .collect()
+    templates.iter().map(|t| substitute(t, subs)).collect()
 }
 
 // -- Fetch helpers for assets --

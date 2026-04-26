@@ -36,8 +36,10 @@ pub async fn launch_instance(
         (username, None, None)
     };
 
-    launch::launch_instance(app, &state, &instance, online, auth_name, auth_uuid, auth_token)
-        .await?;
+    launch::launch_instance(
+        app, &state, &instance, online, auth_name, auth_uuid, auth_token,
+    )
+    .await?;
 
     // Update last_played
     {

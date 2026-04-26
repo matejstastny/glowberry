@@ -6,7 +6,6 @@ import { installStarlight } from "@/api/install";
 import { checkStarlightUpdate } from "@/api/github";
 import { launchInstance } from "@/api/launch";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { showMainWindow } from "@/api/settings";
 import type {
     Instance,
     MinecraftProfile,
@@ -78,15 +77,15 @@ export default function App() {
 
     const [showSettings, setShowSettings] = useState(false);
 
-    // Show the hidden main window once React has mounted.
+    // Show the window once React has mounted.
     useEffect(() => {
         const appWindow = getCurrentWindow();
 
-        showMainWindow()
+        appWindow
+            .show()
             .then(async () => {
                 await appWindow.unminimize().catch(() => {});
                 await appWindow.setFocus().catch(() => {});
-
                 window.setTimeout(() => {
                     void appWindow.setFocus().catch(() => {});
                 }, 120);
