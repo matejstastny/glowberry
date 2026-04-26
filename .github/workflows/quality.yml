@@ -1,69 +1,69 @@
 name: Quality Checks
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-  workflow_dispatch:
+    push:
+        branches:
+            - main
+    pull_request:
+    workflow_dispatch:
 
 jobs:
-  format:
-    name: Format check
-    runs-on: macos-latest
+    format:
+        name: Format check
+        runs-on: macos-latest
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
+            - name: Setup Node
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 20
+                  cache: npm
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
+            - name: Setup Rust
+              uses: dtolnay/rust-toolchain@stable
+              with:
+                  components: rustfmt
 
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
+            - name: Rust cache
+              uses: swatinem/rust-cache@v2
+              with:
+                  workspaces: src-tauri
 
-      - name: Install dependencies
-        run: npm ci
+            - name: Install dependencies
+              run: npm ci
 
-      - name: Run format checks
-        run: npm run format:check
+            - name: Run format checks
+              run: npm run format:check
 
-  lint:
-    name: Lint check
-    runs-on: macos-latest
+    lint:
+        name: Lint check
+        runs-on: macos-latest
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
+            - name: Setup Node
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 20
+                  cache: npm
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
+            - name: Setup Rust
+              uses: dtolnay/rust-toolchain@stable
+              with:
+                  components: clippy
 
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
+            - name: Rust cache
+              uses: swatinem/rust-cache@v2
+              with:
+                  workspaces: src-tauri
 
-      - name: Install dependencies
-        run: npm ci
+            - name: Install dependencies
+              run: npm ci
 
-      - name: Run lints
-        run: npm run lint
+            - name: Run lints
+              run: npm run lint
