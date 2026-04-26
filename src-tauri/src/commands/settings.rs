@@ -33,3 +33,12 @@ pub fn set_data_dir(
         .save(&state.config_dir)
         .map_err(|e| GlowberryError::Other(format!("Failed to save settings: {e}")))
 }
+
+#[tauri::command]
+pub fn show_main_window(window: tauri::Window) -> Result<(), String> {
+    if window.is_minimized().map_err(|e| e.to_string())? {
+        window.unminimize().map_err(|e| e.to_string())?;
+    }
+    window.show().map_err(|e| e.to_string())?;
+    window.set_focus().map_err(|e| e.to_string())
+}

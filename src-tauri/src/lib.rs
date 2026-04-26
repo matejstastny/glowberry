@@ -50,6 +50,7 @@ pub fn run() {
             // Settings
             commands::settings::get_settings,
             commands::settings::set_data_dir,
+            commands::settings::show_main_window,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Glowberry");

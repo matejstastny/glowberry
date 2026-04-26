@@ -1,6 +1,6 @@
 .overlay {
     position: fixed;
-    top: 40px; /* sit below the top bar so the home button stays visible */
+    top: 0;
     left: 0;
     right: 0;
     bottom: 0;

@@ -13,3 +13,7 @@ export async function getSettings(): Promise<SettingsInfo> {
 export async function setDataDir(path: string | null): Promise<void> {
     return invoke("set_data_dir", { path });
 }
+
+export async function showMainWindow(): Promise<void> {
+    return invoke("show_main_window");
+}

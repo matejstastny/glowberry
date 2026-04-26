@@ -13,11 +13,12 @@
         "windows": [
             {
                 "title": "Glowberry",
+                "visible": false,
                 "width": 360,
                 "height": 460,
                 "resizable": false,
                 "decorations": true,
-                "titleBarStyle": "Overlay"
+                "titleBarStyle": "Visible"
             }
         ],
         "security": {

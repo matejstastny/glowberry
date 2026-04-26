@@ -5,6 +5,8 @@ import { listInstances } from "@/api/instances";
 import { installStarlight } from "@/api/install";
 import { checkStarlightUpdate } from "@/api/github";
 import { launchInstance } from "@/api/launch";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { showMainWindow } from "@/api/settings";
 import type {
     Instance,
     MinecraftProfile,
@@ -59,9 +61,7 @@ export default function App() {
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
     const [profile, setProfile] = useState<MinecraftProfile | null>(null);
-    const [isOnline, setIsOnline] = useState(
-        () => localStorage.getItem("gb_online") !== "offline",
-    );
+    const [isOnline, setIsOnline] = useState(() => localStorage.getItem("gb_online") !== "offline");
     const [offlineUsername, setOfflineUsername] = useState(
         () => localStorage.getItem("gb_username") ?? "",
     );
@@ -77,6 +77,22 @@ export default function App() {
     const [checkingUpdate, setCheckingUpdate] = useState(false);
 
     const [showSettings, setShowSettings] = useState(false);
+
+    // Show the hidden main window once React has mounted.
+    useEffect(() => {
+        const appWindow = getCurrentWindow();
+
+        showMainWindow()
+            .then(async () => {
+                await appWindow.unminimize().catch(() => {});
+                await appWindow.setFocus().catch(() => {});
+
+                window.setTimeout(() => {
+                    void appWindow.setFocus().catch(() => {});
+                }, 120);
+            })
+            .catch(() => {});
+    }, []);
 
     // Restore auth + init on startup
     useEffect(() => {
@@ -232,17 +248,13 @@ export default function App() {
 
     return (
         <div className={styles.app}>
-            {/* Top bar */}
-            <div className={styles.topBar} data-tauri-drag-region>
-                <div data-tauri-drag-region style={{ flex: 1 }} />
-                <button
-                    className={styles.settingsBtn}
-                    onClick={() => setShowSettings((v) => !v)}
-                    title={showSettings ? "Home" : "Settings"}
-                >
-                    {showSettings ? <HomeIcon /> : <SettingsIcon />}
-                </button>
-            </div>
+            <button
+                className={styles.settingsBtn}
+                onClick={() => setShowSettings((v) => !v)}
+                title={showSettings ? "Home" : "Settings"}
+            >
+                {showSettings ? <HomeIcon /> : <SettingsIcon />}
+            </button>
 
             {/* Main content */}
             <div className={styles.main}>
@@ -257,10 +269,7 @@ export default function App() {
                         <div className={styles.errorBox}>
                             <div className={styles.errorTitle}>Something went wrong</div>
                             <div className={styles.errorMsg}>{errorMsg}</div>
-                            <button
-                                className={styles.retryBtn}
-                                onClick={loadInstance}
-                            >
+                            <button className={styles.retryBtn} onClick={loadInstance}>
                                 Try again
                             </button>
                         </div>
@@ -312,9 +321,7 @@ export default function App() {
 
                         <div className={styles.packName}>Starlight</div>
                         {versionParts.length > 0 && (
-                            <div className={styles.packVersion}>
-                                {versionParts.join(" · ")}
-                            </div>
+                            <div className={styles.packVersion}>{versionParts.join(" · ")}</div>
                         )}
 
                         {/* Play button */}
@@ -362,11 +369,7 @@ export default function App() {
                                       : "Up to date"
                             }
                         >
-                            {checkingUpdate ? (
-                                <Spinner size={12} />
-                            ) : (
-                                <UpdateIcon />
-                            )}
+                            {checkingUpdate ? <Spinner size={12} /> : <UpdateIcon />}
                             {checkingUpdate
                                 ? "Checking..."
                                 : updateAvailable
@@ -375,19 +378,21 @@ export default function App() {
                         </button>
 
                         {/* Game error */}
-                        {gameError && (
-                            <div className={styles.gameError}>
-                                <span className={styles.gameErrorText}>
-                                    {gameError.split("\n")[0]}
-                                </span>
-                                <button
-                                    className={styles.dismissBtn}
-                                    onClick={() => setGameError(null)}
-                                >
-                                    ×
-                                </button>
-                            </div>
-                        )}
+                        <div className={styles.gameErrorSlot}>
+                            {gameError && (
+                                <div className={styles.gameError}>
+                                    <span className={styles.gameErrorText}>
+                                        {gameError.split("\n")[0]}
+                                    </span>
+                                    <button
+                                        className={styles.dismissBtn}
+                                        onClick={() => setGameError(null)}
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
             </div>
