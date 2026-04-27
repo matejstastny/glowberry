@@ -247,13 +247,21 @@ export default function App() {
 
     return (
         <div className={styles.app}>
-            <button
-                className={styles.settingsBtn}
-                onClick={() => setShowSettings((v) => !v)}
-                title={showSettings ? "Home" : "Settings"}
-            >
-                {showSettings ? <HomeIcon /> : <SettingsIcon />}
-            </button>
+            {/* Persistent top bar — always rendered above main content and the
+                settings overlay.  The drag region fills the left portion;
+                the settings button sits on the right as a normal flex child.
+                On macOS (titleBarStyle Overlay) this strip aligns with the
+                traffic-light buttons so they never clash with any content. */}
+            <div className={styles.topBar}>
+                <div className={styles.topBarDrag} data-tauri-drag-region />
+                <button
+                    className={styles.settingsBtn}
+                    onClick={() => setShowSettings((v) => !v)}
+                    title={showSettings ? "Home" : "Settings"}
+                >
+                    {showSettings ? <HomeIcon /> : <SettingsIcon />}
+                </button>
+            </div>
 
             {/* Main content */}
             <div className={styles.main}>

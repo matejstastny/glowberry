@@ -32,7 +32,9 @@ pub async fn download_java(
     let java_dir = data_dir.join("java");
     tokio::fs::create_dir_all(&java_dir).await?;
 
-    let archive_path = java_dir.join(format!("jre-{major_version}-download.tar.gz"));
+    // Adoptium serves .zip on Windows, .tar.gz on macOS/Linux.
+    let archive_ext = if cfg!(target_os = "windows") { "zip" } else { "tar.gz" };
+    let archive_path = java_dir.join(format!("jre-{major_version}-download.{archive_ext}"));
     let bytes = response.bytes().await?;
     tokio::fs::write(&archive_path, &bytes).await?;
 
@@ -40,16 +42,24 @@ pub async fn download_java(
     let extract_dir = java_dir.clone();
     let archive_path_clone = archive_path.clone();
 
-    // Extract in a blocking task since tar/flate2 are synchronous
-    let extracted_name =
-        tokio::task::spawn_blocking(move || extract_tar_gz(&archive_path_clone, &extract_dir))
-            .await
-            .map_err(|e| GlowberryError::Java(format!("Extract task failed: {e}")))??;
+    // Extract in a blocking task (zip/tar APIs are synchronous).
+    let extracted_name = tokio::task::spawn_blocking(move || {
+        if cfg!(target_os = "windows") {
+            extract_zip(&archive_path_clone, &extract_dir)
+        } else {
+            extract_tar_gz(&archive_path_clone, &extract_dir)
+        }
+    })
+    .await
+    .map_err(|e| GlowberryError::Java(format!("Extract task failed: {e}")))??;
 
     // Clean up archive
     let _ = tokio::fs::remove_file(&archive_path).await;
 
-    // Find the java binary in the extracted directory
+    // Build the path to the java binary inside the extracted directory.
+    // macOS .tar.gz: <name>/Contents/Home/bin/java
+    // Windows .zip:  <name>/bin/java.exe
+    // Linux .tar.gz: <name>/bin/java
     let extracted_dir = java_dir.join(&extracted_name);
     let java_bin = if cfg!(target_os = "macos") {
         extracted_dir
@@ -57,6 +67,8 @@ pub async fn download_java(
             .join("Home")
             .join("bin")
             .join("java")
+    } else if cfg!(target_os = "windows") {
+        extracted_dir.join("bin").join("java.exe")
     } else {
         extracted_dir.join("bin").join("java")
     };
@@ -68,7 +80,7 @@ pub async fn download_java(
         )));
     }
 
-    // Make java executable on unix
+    // Make java executable on Unix.
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -87,6 +99,8 @@ pub async fn download_java(
     })
 }
 
+// ── Archive extraction ────────────────────────────────────────────────────────
+
 fn extract_tar_gz(
     archive_path: &std::path::Path,
     extract_dir: &std::path::Path,
@@ -94,18 +108,15 @@ fn extract_tar_gz(
     let file = std::fs::File::open(archive_path)?;
     let decoder = flate2::read::GzDecoder::new(file);
     let mut archive = tar::Archive::new(decoder);
-
-    // Find the top-level directory name from the first entry
-    let mut top_dir = String::new();
-
     archive.unpack(extract_dir)?;
 
-    // Re-read to find the extracted directory name
-    let file = std::fs::File::open(archive_path)?;
-    let decoder = flate2::read::GzDecoder::new(file);
-    let mut archive = tar::Archive::new(decoder);
+    // Re-read to find the top-level directory name.
+    let file2 = std::fs::File::open(archive_path)?;
+    let decoder2 = flate2::read::GzDecoder::new(file2);
+    let mut archive2 = tar::Archive::new(decoder2);
 
-    for entry in archive.entries()? {
+    let mut top_dir = String::new();
+    for entry in archive2.entries()? {
         let entry = entry?;
         let path = entry.path()?;
         if let Some(first) = path.components().next() {
@@ -122,6 +133,58 @@ fn extract_tar_gz(
 
     Ok(top_dir)
 }
+
+/// Extract a zip archive (used on Windows for Adoptium JRE downloads).
+fn extract_zip(
+    archive_path: &std::path::Path,
+    extract_dir: &std::path::Path,
+) -> Result<String, GlowberryError> {
+    let file = std::fs::File::open(archive_path)?;
+    let mut archive = zip::ZipArchive::new(file)?;
+
+    let mut top_dir = String::new();
+
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i)?;
+        let raw_name = entry.name().to_string();
+
+        // Capture the top-level directory from the very first entry.
+        if top_dir.is_empty() {
+            // Zip paths always use '/' as separator.
+            let first = raw_name.split('/').next().unwrap_or(&raw_name);
+            if !first.is_empty() {
+                top_dir = first.to_string();
+            }
+        }
+
+        // Construct an output path, rejecting any suspicious ".." components.
+        let out_path = extract_dir.join(&raw_name);
+        if !out_path.starts_with(extract_dir) {
+            // Zip-slip guard: skip entries that would escape the target dir.
+            continue;
+        }
+
+        if entry.is_dir() {
+            std::fs::create_dir_all(&out_path)?;
+        } else {
+            if let Some(parent) = out_path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            let mut out_file = std::fs::File::create(&out_path)?;
+            std::io::copy(&mut entry, &mut out_file)?;
+        }
+    }
+
+    if top_dir.is_empty() {
+        return Err(GlowberryError::Java(
+            "Could not determine extracted directory name from zip".into(),
+        ));
+    }
+
+    Ok(top_dir)
+}
+
+// ── Platform helpers ──────────────────────────────────────────────────────────
 
 fn adoptium_os() -> &'static str {
     if cfg!(target_os = "macos") {

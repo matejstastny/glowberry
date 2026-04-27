@@ -8,10 +8,34 @@
     user-select: none;
 }
 
+/* ── Persistent top bar ─────────────────────────────────────── */
+
+/* The full-width strip that is always rendered above both the main content
+   and the settings overlay.  On macOS (titleBarStyle Overlay) it aligns
+   exactly with the traffic-light buttons so nothing gets obscured.
+   z-index keeps it above the settings panel (z-index 100). */
+.topBar {
+    height: var(--topbar-height);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    padding: 0 6px 0 0;
+    z-index: 110;
+    position: relative;   /* establishes stacking context above the overlay */
+}
+
+/* Fills the space to the left of the settings button and is the actual
+   drag handle.  We keep it as a separate element so the button sibling
+   receives normal pointer events and stays clickable. */
+.topBarDrag {
+    flex: 1;
+    height: 100%;
+    -webkit-app-region: drag;
+    cursor: default;
+}
+
 .settingsBtn {
-    position: absolute;
-    top: 6px;
-    right: 10px;
+    /* no longer position:absolute – it lives inside .topBar */
     z-index: 120;
     width: 28px;
     height: 28px;

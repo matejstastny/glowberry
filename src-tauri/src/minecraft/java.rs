@@ -82,6 +82,8 @@ pub fn detect_all_java(data_dir: &Path) -> Vec<JavaInfo> {
                     .join("Home")
                     .join("bin")
                     .join("java")
+            } else if cfg!(target_os = "windows") {
+                entry.path().join("bin").join("java.exe")
             } else {
                 entry.path().join("bin").join("java")
             };

@@ -17,7 +17,7 @@
                 "height": 460,
                 "resizable": false,
                 "decorations": true,
-                "titleBarStyle": "Visible"
+                "titleBarStyle": "Overlay"
             }
         ],
         "security": {

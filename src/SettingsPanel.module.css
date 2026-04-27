@@ -1,6 +1,9 @@
 .overlay {
     position: fixed;
-    top: 0;
+    /* Start below the persistent top bar so traffic lights and the drag
+       region are never obscured.  The top bar sits at z-index 110 so it
+       will always render above this overlay (z-index 100). */
+    top: var(--topbar-height);
     left: 0;
     right: 0;
     bottom: 0;
