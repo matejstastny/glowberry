@@ -371,6 +371,7 @@ async fn download_libraries(
 
     let mut paths = Vec::new();
     let mut handles = Vec::new();
+    let dm = Arc::new(DownloadManager::new(client.clone()));
 
     for lib in &libraries {
         // Get download info from explicit downloads or construct from Maven coords
@@ -408,8 +409,8 @@ async fn download_libraries(
             continue;
         }
 
-        let dm = DownloadManager::new(client.clone());
         let hash = sha1.map(ExpectedHash::Sha1).unwrap_or(ExpectedHash::None);
+        let dm = Arc::clone(&dm);
 
         handles.push(tokio::spawn(async move {
             dm.download_file(&DownloadTask {
@@ -444,6 +445,7 @@ async fn download_assets(
 
     let objects_dir = data_dir.join("assets").join("objects");
     let mut handles = Vec::new();
+    let dm = Arc::new(DownloadManager::new(client.clone()));
 
     for obj in index.objects.values() {
         let prefix = &obj.hash[..2];
@@ -459,8 +461,8 @@ async fn download_assets(
         );
         let hash = obj.hash.clone();
         let _size = obj.size;
+        let dm = Arc::clone(&dm);
 
-        let dm = DownloadManager::new(client.clone());
         handles.push(tokio::spawn(async move {
             dm.download_file(&DownloadTask {
                 url,
