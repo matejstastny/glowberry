@@ -304,8 +304,9 @@ export default function App() {
             {/* Persistent top bar — always rendered above main content and the
                 settings overlay.  The drag region fills the left portion;
                 the settings button sits on the right as a normal flex child.
-                On macOS (titleBarStyle Overlay) this strip aligns with the
-                traffic-light buttons so they never clash with any content. */}
+                On macOS the window uses a transparent title bar with a matching
+                background color so the native traffic-light buttons stay usable
+                and the drag region remains reliable. */}
             <div className={styles.topBar}>
                 <div className={styles.topBarDrag} data-tauri-drag-region />
                 <button

@@ -2,7 +2,7 @@
 
 :root {
     /* Height of the persistent top bar.
-       On macOS (titleBarStyle Overlay) this 28 px zone sits below the
+         On macOS the transparent title bar leaves this 28 px zone available for
        traffic-light buttons so no content is ever hidden behind them.
        On Windows/Linux (native decorations) it becomes a thin app header. */
     --topbar-height: 28px;

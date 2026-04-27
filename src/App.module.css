@@ -11,9 +11,10 @@
 /* ── Persistent top bar ─────────────────────────────────────── */
 
 /* The full-width strip that is always rendered above both the main content
-   and the settings overlay.  On macOS (titleBarStyle Overlay) it aligns
-   exactly with the traffic-light buttons so nothing gets obscured.
-   z-index keeps it above the settings panel (z-index 100). */
+    and the settings overlay.  On macOS the title bar is transparent and the
+    window background color matches the app, which keeps the drag region
+    reliable without covering the traffic-light buttons.
+    z-index keeps it above the settings panel (z-index 100). */
 .topBar {
     height: var(--topbar-height);
     flex-shrink: 0;
