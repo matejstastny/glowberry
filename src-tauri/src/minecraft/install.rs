@@ -40,7 +40,9 @@ fn emit_progress(app: &AppHandle, progress: &InstallProgress) {
     let _ = app.emit("install-progress", progress);
 }
 
-async fn clean_minecraft_dir_preserve_saves(minecraft_dir: &std::path::Path) -> Result<(), GlowberryError> {
+async fn clean_minecraft_dir_preserve_saves(
+    minecraft_dir: &std::path::Path,
+) -> Result<(), GlowberryError> {
     if !minecraft_dir.exists() {
         return Ok(());
     }
