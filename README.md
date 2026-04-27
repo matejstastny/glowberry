@@ -1,6 +1,8 @@
+<img src="./assets/glowberry.png" alt="Project icon" width="20%" align="right">
+
 # Glowberry
 
-A simple, fast Minecraft launcher for managing modpacks with a streamlined feature set and minimalist UI. Created as an alternative launcher for users who prefer a lighter approach to modpack management.
+A simple, fast Minecraft launcher for managing modpacks with a streamlined feature set and minimalist UI. Created as an alternative launcher for users who prefer a lighter approach to modpack management. Currently hard locked to a singular Modrinth modpack (my own, [Starlight](https://modrinth.com/modpack/starlightmodpack)), but future updates will add support for more packs from Modrinth or local `mrpack` files.
 
 ## Features
 
@@ -10,77 +12,4 @@ A simple, fast Minecraft launcher for managing modpacks with a streamlined featu
 - **Smart updates** - one-click modpack updates that actually work
 - **File locks** - protect your keybinds, settings, and configs from being overwritten during pack updates
 - **Cross-platform** - macOS and Windows
-- **Lightweight** - ~5MB binary, instant startup
-
-## Tech Stack
-
-| Layer    | Technology         |
-| -------- | ------------------ |
-| Backend  | Rust (Tauri v2)    |
-| Frontend | React + TypeScript |
-| Bundler  | Vite               |
-| API      | Modrinth v2        |
-
-<details>
-<summary><h2>Development</h2></summary>
-
-### Prerequisites
-
-- [Rust](https://rustup.rs/) (stable)
-- [Node.js](https://nodejs.org/) (v20+)
-- System dependencies for Tauri - see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/)
-
-### Setup
-
-```bash
-git clone https://github.com/matejstastny/glowberry.git
-cd glowberry
-npm install
-```
-
-### Commands
-
-```bash
-npm run tauri dev        # Run in development mode (hot reload)
-npm run tauri build      # Build for production
-npm run lint             # ESLint (frontend) + Clippy (Rust)
-npm run format           # Prettier (frontend) + rustfmt (Rust)
-npm run format:check     # Check formatting without changing files
-npm run check            # TypeScript type checking
-```
-
-### Release builds
-
-- Distribution icons/background are sourced from [assets](assets).
-- CI release workflow is in [.github/workflows/release.yml](.github/workflows/release.yml).
-- Releases run on:
-	- tag push matching `v*` (example: `v0.2.0`)
-	- manual dispatch with a required `version` input (example: `0.2.0`)
-
-### Project Structure
-
-```
-glowberry/
-├── src/                    # React frontend
-│   ├── api/                # Tauri IPC wrappers
-│   ├── components/         # Reusable UI components
-│   ├── hooks/              # React hooks (shared state)
-│   ├── pages/              # Page components
-│   ├── types.ts            # TypeScript types
-│   ├── App.tsx             # Root component + routing
-│   └── main.tsx            # Entry point
-├── src-tauri/              # Rust backend
-│   └── src/
-│       ├── auth/           # Microsoft authentication
-│       ├── commands/       # Tauri IPC command handlers
-│       ├── download/       # Parallel download manager
-│       ├── instance/       # Instance management + file locks
-│       ├── minecraft/      # Java detection, game launching
-│       ├── modrinth/       # Modrinth API client + mrpack parser
-│       ├── error.rs        # Error types
-│       ├── state.rs        # App state
-│       └── lib.rs          # Entry point
-└── static/                 # Static assets
-```
-
-</details>
+- **Lightweight** - ~10MB binary, instant startup
