@@ -31,6 +31,7 @@
         "targets": "all",
         "createUpdaterArtifacts": true,
         "macOS": {
+            "entitlements": "entitlements.plist",
             "dmg": {
                 "background": "../assets/dmg-background.png"
             }
