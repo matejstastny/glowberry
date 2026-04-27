@@ -77,20 +77,12 @@ export default function App() {
 
     const [showSettings, setShowSettings] = useState(false);
 
-    // Show the window once React has mounted.
+    // Show the window once React has painted the first frame.
+    // The window starts hidden (visible:false in tauri.conf.json) to avoid
+    // the blank WebView2 flash on Windows before content is ready.
     useEffect(() => {
         const appWindow = getCurrentWindow();
-
-        appWindow
-            .show()
-            .then(async () => {
-                await appWindow.unminimize().catch(() => {});
-                await appWindow.setFocus().catch(() => {});
-                window.setTimeout(() => {
-                    void appWindow.setFocus().catch(() => {});
-                }, 120);
-            })
-            .catch(() => {});
+        appWindow.show().then(() => appWindow.setFocus()).catch(() => {});
     }, []);
 
     // Restore auth + init on startup

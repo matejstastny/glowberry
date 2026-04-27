@@ -216,6 +216,16 @@ pub async fn launch_instance(
     cmd.stdout(std::process::Stdio::piped());
     cmd.stderr(std::process::Stdio::piped());
 
+    // On Windows, java.exe is a console-subsystem binary — without this flag
+    // it opens a visible terminal window every time Minecraft launches.
+    // We capture all output through the piped streams, so the window is
+    // purely noise (CREATE_NO_WINDOW = 0x08000000).
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000);
+    }
+
     let mut child = cmd
         .spawn()
         .map_err(|e| GlowberryError::Launch(format!("Failed to start Minecraft: {e}")))?;

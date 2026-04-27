@@ -119,7 +119,18 @@ pub async fn ensure_java(
 }
 
 fn probe_java(path: &PathBuf) -> Option<JavaInfo> {
-    let output = Command::new(path).arg("-version").output().ok()?;
+    let mut cmd = Command::new(path);
+    cmd.arg("-version");
+
+    // Suppress the console window that would briefly flash on Windows each
+    // time we probe a java binary (CREATE_NO_WINDOW = 0x08000000).
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000);
+    }
+
+    let output = cmd.output().ok()?;
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     let version_line = stderr.lines().next()?;
