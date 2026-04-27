@@ -50,10 +50,9 @@ npm run check            # TypeScript type checking
 4. Add TS wrapper in `src/api/`
 5. Add types to `src/types.ts` if needed
 
-## Key Design Decisions
+### Branches and Git
 
-- **Target audience is non-technical** — UI language should be simple, no jargon. "Play" not "Launch". "Keep my files safe" not "File locking."
-- **Native window decorations** — `decorations: true` in tauri.conf.json. Works properly with tiling window managers (aerospace, etc.).
-- **File locks** are stored as relative paths in `glowberry_instance.json`. Directory locks end with `/`.
-- **Update system** diffs old vs new `modrinth.index.json` to compute add/update/remove/skip actions. Locked files are skipped.
-- **Per-instance .minecraft/** — each instance has its own game directory. Libraries and assets are shared.
+- The `main` branch is protected — all changes must go through PRs
+- Use feature branches named `feature/your-feature-name`
+- Commit when you are done with a logical chunk of work
+- Commit using `feat:`, `fix:`, `refactor:`, `chore:`, (Github supported) etc. for better commit history
