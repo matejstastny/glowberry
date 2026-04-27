@@ -39,4 +39,3 @@ jobs:
 
             - name: Check Rust formatting
               run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
-
