@@ -21,6 +21,8 @@ npm run check            # TypeScript type checking
 
 ## Code Conventions
 
+Please format code before committing (Prettier for frontend, rustfmt for Rust).
+
 ### Rust (src-tauri/)
 
 - `commands/` is a thin adapter layer — business logic goes in core modules (`modrinth/`, `instance/`, `download/`, etc.)
