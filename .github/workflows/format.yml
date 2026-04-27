@@ -1,0 +1,42 @@
+name: Format
+
+on:
+    pull_request:
+    push:
+        branches:
+            - main
+
+jobs:
+    format:
+        name: Format check
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup Node
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 20
+                  cache: npm
+
+            - name: Setup Rust
+              uses: dtolnay/rust-toolchain@stable
+              with:
+                  components: rustfmt
+
+            - name: Rust cache
+              uses: swatinem/rust-cache@v2
+              with:
+                  workspaces: src-tauri
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Check npm formatting
+              run: npx prettier --check .
+
+            - name: Check Rust formatting
+              run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
+
