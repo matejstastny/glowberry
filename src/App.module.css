@@ -21,7 +21,7 @@
     align-items: center;
     padding: 0 6px 0 0;
     z-index: 110;
-    position: relative;   /* establishes stacking context above the overlay */
+    position: relative; /* establishes stacking context above the overlay */
 }
 
 /* Fills the space to the left of the settings button and is the actual

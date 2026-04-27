@@ -33,7 +33,11 @@ pub async fn download_java(
     tokio::fs::create_dir_all(&java_dir).await?;
 
     // Adoptium serves .zip on Windows, .tar.gz on macOS/Linux.
-    let archive_ext = if cfg!(target_os = "windows") { "zip" } else { "tar.gz" };
+    let archive_ext = if cfg!(target_os = "windows") {
+        "zip"
+    } else {
+        "tar.gz"
+    };
     let archive_path = java_dir.join(format!("jre-{major_version}-download.{archive_ext}"));
     let bytes = response.bytes().await?;
     tokio::fs::write(&archive_path, &bytes).await?;

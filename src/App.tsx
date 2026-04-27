@@ -82,7 +82,10 @@ export default function App() {
     // the blank WebView2 flash on Windows before content is ready.
     useEffect(() => {
         const appWindow = getCurrentWindow();
-        appWindow.show().then(() => appWindow.setFocus()).catch(() => {});
+        appWindow
+            .show()
+            .then(() => appWindow.setFocus())
+            .catch(() => {});
     }, []);
 
     // Restore auth + init on startup
