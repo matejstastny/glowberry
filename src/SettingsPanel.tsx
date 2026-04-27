@@ -18,6 +18,7 @@ const MEMORY_OPTIONS = [
 
 interface Props {
     profile: MinecraftProfile | null;
+    appVersion: string | null;
     isOnline: boolean;
     offlineUsername: string;
     instance: Instance | null;
@@ -34,6 +35,7 @@ type LoginState =
 
 export default function SettingsPanel({
     profile,
+    appVersion,
     isOnline,
     offlineUsername,
     instance,
@@ -213,6 +215,27 @@ export default function SettingsPanel({
                         </div>
                     </section>
                 )}
+
+                {/* ── About ───────────────────────────────────── */}
+                <section className={styles.section}>
+                    <div className={styles.label}>About</div>
+                    <div className={styles.card}>
+                        <div className={styles.aboutRow}>
+                            <div className={styles.aboutText}>
+                                <div className={styles.aboutTitle}>Glowberry</div>
+                                <div className={styles.aboutVersion}>
+                                    {appVersion ? `Version ${appVersion}` : "Version unknown"}
+                                </div>
+                            </div>
+                            <button
+                                className={styles.websiteBtn}
+                                onClick={() => openUrl("https://github.com/matejstastny/glowberry")}
+                            >
+                                GitHub website
+                            </button>
+                        </div>
+                    </div>
+                </section>
             </div>
         </div>
     );

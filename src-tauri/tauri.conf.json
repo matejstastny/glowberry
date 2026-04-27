@@ -28,11 +28,23 @@
     "bundle": {
         "active": true,
         "targets": "all",
+        "createUpdaterArtifacts": true,
         "macOS": {
             "dmg": {
                 "background": "../assets/dmg-background.png"
             }
         },
         "icon": ["../assets/glowberry.png", "../assets/mac.icns", "../assets/glowberry.ico"]
+    },
+    "plugins": {
+        "updater": {
+            "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDlGMkFENjI0NEI1QjBCMUMKUldRY0MxdExKTllxbjJoYm5vVjEzNnRqOWVkQjR0OHhlUTFGN1RrRUh5dEN5aHFYTU9HZzMrVHYK",
+            "windows": {
+                "installMode": "passive"
+            },
+            "endpoints": [
+                "https://github.com/matejstastny/glowberry/releases/latest/download/latest.json"
+            ]
+        }
     }
 }

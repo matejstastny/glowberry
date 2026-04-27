@@ -226,6 +226,10 @@
     transition: all var(--transition);
 }
 
+.appUpdateBtn {
+    cursor: pointer;
+}
+
 .updateAvailable {
     color: var(--accent);
     border-color: rgba(212, 162, 76, 0.4);
