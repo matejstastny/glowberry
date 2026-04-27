@@ -39,6 +39,33 @@ pub enum InstallStage {
 fn emit_progress(app: &AppHandle, progress: &InstallProgress) {
     let _ = app.emit("install-progress", progress);
 }
+
+async fn clean_minecraft_dir_preserve_saves(minecraft_dir: &std::path::Path) -> Result<(), GlowberryError> {
+    if !minecraft_dir.exists() {
+        return Ok(());
+    }
+
+    let mut entries = tokio::fs::read_dir(minecraft_dir).await?;
+    while let Some(entry) = entries.next_entry().await? {
+        let path = entry.path();
+        let name = entry.file_name();
+
+        // Preserve player worlds
+        if name.to_string_lossy() == "saves" {
+            continue;
+        }
+
+        let file_type = entry.file_type().await?;
+        if file_type.is_dir() {
+            tokio::fs::remove_dir_all(path).await?;
+        } else {
+            tokio::fs::remove_file(path).await?;
+        }
+    }
+
+    Ok(())
+}
+
 /// Install (or update) the Starlight modpack from a direct mrpack download URL.
 /// If `existing_instance_id` is provided, the existing instance directory is
 /// reused (in-place update); otherwise a fresh UUID is generated.
@@ -130,6 +157,7 @@ pub async fn install_from_github(
         (ModLoader::Vanilla, None)
     };
 
+    let is_update = existing_instance_id.is_some();
     let instance_id = existing_instance_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
     let minecraft_dir = state
         .data_dir
@@ -137,6 +165,22 @@ pub async fn install_from_github(
         .join(&instance_id)
         .join(".minecraft");
     tokio::fs::create_dir_all(&minecraft_dir).await?;
+
+    if is_update {
+        emit_progress(
+            &app,
+            &InstallProgress {
+                stage: InstallStage::Finalizing,
+                message: "Cleaning old files (keeping worlds)...".into(),
+                current: 0,
+                total: 0,
+                bytes_downloaded: 0,
+                bytes_total: 0,
+                project_id: SLUG.to_string(),
+            },
+        );
+        clean_minecraft_dir_preserve_saves(&minecraft_dir).await?;
+    }
 
     // Filter: skip server-only files
     let mod_files: Vec<_> = index
