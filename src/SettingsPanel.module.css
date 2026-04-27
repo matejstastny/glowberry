@@ -199,6 +199,51 @@
     outline: none;
 }
 
+/* ── About ─────────────────────────────────────────────────── */
+
+.aboutRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.aboutText {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.aboutTitle {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.aboutVersion {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.websiteBtn {
+    padding: 6px 10px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all var(--transition);
+    white-space: nowrap;
+}
+
+.websiteBtn:hover {
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+}
+
 /* ── Shared small button ────────────────────────────────────── */
 
 .smallBtn {

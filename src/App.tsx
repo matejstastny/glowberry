@@ -5,6 +5,8 @@ import { listInstances } from "@/api/instances";
 import { installStarlight } from "@/api/install";
 import { checkStarlightUpdate } from "@/api/github";
 import { launchInstance } from "@/api/launch";
+import { check as checkAppUpdate, type Update as AppUpdate } from "@tauri-apps/plugin-updater";
+import { getVersion } from "@tauri-apps/api/app";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type {
     Instance,
@@ -60,6 +62,7 @@ export default function App() {
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
     const [profile, setProfile] = useState<MinecraftProfile | null>(null);
+    const [appVersion, setAppVersion] = useState<string | null>(null);
     const [isOnline, setIsOnline] = useState(() => localStorage.getItem("gb_online") !== "offline");
     const [offlineUsername, setOfflineUsername] = useState(
         () => localStorage.getItem("gb_username") ?? "",
@@ -75,6 +78,10 @@ export default function App() {
     const [updateAvailable, setUpdateAvailable] = useState(false);
     const [checkingUpdate, setCheckingUpdate] = useState(false);
 
+    const [appUpdate, setAppUpdate] = useState<AppUpdate | null>(null);
+    const [checkingAppUpdate, setCheckingAppUpdate] = useState(false);
+    const [appUpdating, setAppUpdating] = useState(false);
+
     const [showSettings, setShowSettings] = useState(false);
 
     // Show the window once React has painted the first frame.
@@ -88,12 +95,29 @@ export default function App() {
             .catch(() => {});
     }, []);
 
+    useEffect(() => {
+        return () => {
+            appUpdate?.close().catch(() => {});
+        };
+    }, [appUpdate]);
+
     // Restore auth + init on startup
     useEffect(() => {
         tryRestoreSession()
             .then(setProfile)
             .catch(() => {});
         loadInstance();
+    }, []);
+
+    useEffect(() => {
+        getVersion()
+            .then(setAppVersion)
+            .catch(() => {});
+    }, []);
+
+    // Check whether Glowberry itself has a newer GitHub release.
+    useEffect(() => {
+        checkAppVersion();
     }, []);
 
     // Game events
@@ -180,6 +204,19 @@ export default function App() {
         }
     }
 
+    async function checkAppVersion() {
+        setCheckingAppUpdate(true);
+        try {
+            const update = await checkAppUpdate();
+            appUpdate?.close().catch(() => {});
+            setAppUpdate(update);
+        } catch {
+            // Ignore update check failures; network or signing may be unavailable.
+        } finally {
+            setCheckingAppUpdate(false);
+        }
+    }
+
     async function doInstall(release: GithubRelease) {
         setProgress(null);
         try {
@@ -211,6 +248,28 @@ export default function App() {
         }
     }
 
+    async function handleAppUpdate() {
+        if (appUpdating) return;
+
+        if (!appUpdate) {
+            await checkAppVersion();
+            return;
+        }
+
+        setAppUpdating(true);
+        try {
+            await appUpdate.downloadAndInstall();
+            setAppUpdate(null);
+
+            const appWindow = getCurrentWindow();
+            await appWindow.close().catch(() => {});
+        } catch {
+            // Keep the app usable even if the updater fails.
+        } finally {
+            setAppUpdating(false);
+        }
+    }
+
     async function handlePlay() {
         if (!instance || gameRunning || preparing) return;
         if (!isOnline && !offlineUsername.trim()) {
@@ -232,7 +291,7 @@ export default function App() {
         }
     }
 
-    const busy = gameRunning || preparing;
+    const busy = gameRunning || preparing || appUpdating;
     const iconUrl = instance?.modpack?.icon_url;
     const versionParts = [
         instance?.modpack?.version_id,
@@ -379,6 +438,34 @@ export default function App() {
                                   : "Up to date"}
                         </button>
 
+                        <button
+                            className={`${styles.updateBtn} ${styles.appUpdateBtn} ${appUpdate ? styles.updateAvailable : ""}`}
+                            onClick={handleAppUpdate}
+                            disabled={busy || checkingAppUpdate}
+                            title={
+                                checkingAppUpdate
+                                    ? "Checking for app updates..."
+                                    : appUpdating
+                                      ? "Installing update..."
+                                      : appUpdate
+                                        ? `Update Glowberry to ${appUpdate.version}`
+                                        : "Check for app updates"
+                            }
+                        >
+                            {checkingAppUpdate || appUpdating ? (
+                                <Spinner size={12} />
+                            ) : (
+                                <UpdateIcon />
+                            )}
+                            {checkingAppUpdate
+                                ? "Checking for app updates..."
+                                : appUpdating
+                                  ? "Installing app update..."
+                                  : appUpdate
+                                    ? `Update Glowberry to ${appUpdate.version}`
+                                    : "Check for app updates"}
+                        </button>
+
                         {/* Game error */}
                         <div className={styles.gameErrorSlot}>
                             {gameError && (
@@ -421,6 +508,7 @@ export default function App() {
             {showSettings && (
                 <SettingsPanel
                     profile={profile}
+                    appVersion={appVersion}
                     isOnline={isOnline}
                     offlineUsername={offlineUsername}
                     instance={instance}
