@@ -9,6 +9,7 @@ export interface Instance {
     last_played: string | null;
     jvm_args: string[];
     memory_mb: number;
+    active_preset: string | null;
 }
 
 export interface ModpackInfo {
@@ -62,7 +63,7 @@ export interface GameExitEvent {
 // GitHub release info
 export interface GithubRelease {
     tag: string;
-    mrpack_url: string;
-    mrpack_name: string;
-    mrpack_size: number;
+    asset_url: string;
+    asset_name: string;
+    asset_size: number;
 }

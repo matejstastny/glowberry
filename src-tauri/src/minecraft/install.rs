@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
@@ -40,84 +41,102 @@ fn emit_progress(app: &AppHandle, progress: &InstallProgress) {
     let _ = app.emit("install-progress", progress);
 }
 
-async fn clean_minecraft_dir_preserve_saves(
-    minecraft_dir: &std::path::Path,
-) -> Result<(), GlowberryError> {
-    if !minecraft_dir.exists() {
+/// Clean game dir, keeping saves/ and servers.dat intact.
+async fn clean_game_dir_preserve_persistent(game_dir: &Path) -> Result<(), GlowberryError> {
+    if !game_dir.exists() {
         return Ok(());
     }
-
-    let mut entries = tokio::fs::read_dir(minecraft_dir).await?;
+    let mut entries = tokio::fs::read_dir(game_dir).await?;
     while let Some(entry) = entries.next_entry().await? {
-        let path = entry.path();
         let name = entry.file_name();
-
-        // Preserve player worlds
-        if name.to_string_lossy() == "saves" {
+        let name_str = name.to_string_lossy();
+        if name_str == "saves" || name_str == "servers.dat" {
             continue;
         }
-
-        let file_type = entry.file_type().await?;
-        if file_type.is_dir() {
+        let path = entry.path();
+        if entry.file_type().await?.is_dir() {
             tokio::fs::remove_dir_all(path).await?;
         } else {
             tokio::fs::remove_file(path).await?;
         }
     }
-
     Ok(())
 }
 
-/// Install (or update) the Starlight modpack from a direct mrpack download URL.
-/// If `existing_instance_id` is provided, the existing instance directory is
-/// reused (in-place update); otherwise a fresh UUID is generated.
+/// Extract each top-level *.mrpack from a zip into presets_dir.
+/// Returns the sorted list of preset names (file stems).
+fn extract_preset_mrpacks(zip_path: &Path, presets_dir: &Path) -> Result<Vec<String>, GlowberryError> {
+    let file = std::fs::File::open(zip_path)?;
+    let mut archive = zip::ZipArchive::new(file)?;
+    let mut names = Vec::new();
+
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i)?;
+        let entry_name = entry.name().to_string();
+
+        if entry_name.ends_with(".mrpack") && !entry_name.contains('/') {
+            let dest = presets_dir.join(&entry_name);
+            let mut outfile = std::fs::File::create(&dest)?;
+            std::io::copy(&mut entry, &mut outfile)?;
+
+            if let Some(stem) = Path::new(&entry_name).file_stem().and_then(|s| s.to_str()) {
+                names.push(stem.to_string());
+            }
+        }
+    }
+
+    names.sort();
+    Ok(names)
+}
+
+/// Install (or update) the Starlight modpack from a GitHub release asset.
+/// The asset is either a presets zip (*-client-presets.zip) or a plain mrpack
+/// (*-client.mrpack) for older releases.
 pub async fn install_from_github(
     app: AppHandle,
     state: &AppState,
-    mrpack_url: String,
-    mrpack_name: String,
-    mrpack_size: u64,
+    asset_url: String,
+    asset_name: String,
+    asset_size: u64,
     version_tag: String,
     existing_instance_id: Option<String>,
+    existing_active_preset: Option<String>,
 ) -> Result<Instance, GlowberryError> {
     const SLUG: &str = "starlightmodpack";
     let client = &state.http_client;
 
-    // Fetch project metadata from Modrinth (icon URL, title)
     let api = ModrinthApi::new(client.clone());
     let (pack_title, icon_url) = match api.get_project(SLUG).await {
         Ok(p) => (p.title, p.icon_url),
         Err(_) => ("Starlight".to_string(), None),
     };
 
-    // Stage: Downloading mrpack
     emit_progress(
         &app,
         &InstallProgress {
             stage: InstallStage::Downloading,
-            message: format!("Downloading {mrpack_name}..."),
+            message: format!("Downloading {asset_name}..."),
             current: 0,
             total: 1,
             bytes_downloaded: 0,
-            bytes_total: mrpack_size,
+            bytes_total: asset_size,
             project_id: SLUG.to_string(),
         },
     );
 
     let temp_dir = state.data_dir.join("temp");
     tokio::fs::create_dir_all(&temp_dir).await?;
-    let mrpack_path = temp_dir.join(&mrpack_name);
+    let asset_path = temp_dir.join(&asset_name);
 
-    let dm = DownloadManager::new(client.clone());
-    dm.download_file(&DownloadTask {
-        url: mrpack_url,
-        dest: mrpack_path.clone(),
-        expected_hash: ExpectedHash::None, // GitHub releases don't provide sha512 in the API
-        file_name: mrpack_name.clone(),
-    })
-    .await?;
+    DownloadManager::new(client.clone())
+        .download_file(&DownloadTask {
+            url: asset_url,
+            dest: asset_path.clone(),
+            expected_hash: ExpectedHash::None,
+            file_name: asset_name.clone(),
+        })
+        .await?;
 
-    // Stage: Parsing — from here the pipeline is identical to install_modpack
     emit_progress(
         &app,
         &InstallProgress {
@@ -131,8 +150,59 @@ pub async fn install_from_github(
         },
     );
 
-    let mrpack_path_clone = mrpack_path.clone();
-    let index = tokio::task::spawn_blocking(move || parse_mrpack(&mrpack_path_clone))
+    let is_update = existing_instance_id.is_some();
+    let instance_id = existing_instance_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let instance_dir = state.data_dir.join("instances").join(&instance_id);
+    let game_dir = instance_dir.join("game");
+    let presets_dir = instance_dir.join("presets");
+
+    tokio::fs::create_dir_all(&game_dir).await?;
+
+    // Determine active preset and extract mrpacks from zip (or treat plain mrpack as "default")
+    let (active_preset, mrpack_for_parsing) = if asset_name.ends_with("-client-presets.zip") {
+        // Clear old presets and extract fresh ones
+        if presets_dir.exists() {
+            tokio::fs::remove_dir_all(&presets_dir).await?;
+        }
+        tokio::fs::create_dir_all(&presets_dir).await?;
+
+        let asset_path_clone = asset_path.clone();
+        let presets_dir_clone = presets_dir.clone();
+        let preset_names = tokio::task::spawn_blocking(move || {
+            extract_preset_mrpacks(&asset_path_clone, &presets_dir_clone)
+        })
+        .await
+        .map_err(|e| GlowberryError::Other(format!("Preset extraction failed: {e}")))??;
+
+        if preset_names.is_empty() {
+            return Err(GlowberryError::Other(
+                "No presets found in the release archive".into(),
+            ));
+        }
+
+        // Restore previous preset if it still exists; otherwise fall back to first and notify.
+        let active = match &existing_active_preset {
+            Some(prev) if preset_names.contains(prev) => prev.clone(),
+            Some(prev) => {
+                let fallback = preset_names[0].clone();
+                let _ = app.emit(
+                    "preset-fallback",
+                    serde_json::json!({ "requested": prev, "applied": fallback }),
+                );
+                fallback
+            }
+            None => preset_names[0].clone(),
+        };
+
+        let mrpack = presets_dir.join(format!("{active}.mrpack"));
+        (Some(active), mrpack)
+    } else {
+        // Plain mrpack (legacy / no-preset release)
+        (None, asset_path.clone())
+    };
+
+    let mrpack_clone = mrpack_for_parsing.clone();
+    let index = tokio::task::spawn_blocking(move || parse_mrpack(&mrpack_clone))
         .await
         .map_err(|e| GlowberryError::Other(format!("Parse task failed: {e}")))??;
 
@@ -159,21 +229,12 @@ pub async fn install_from_github(
         (ModLoader::Vanilla, None)
     };
 
-    let is_update = existing_instance_id.is_some();
-    let instance_id = existing_instance_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-    let minecraft_dir = state
-        .data_dir
-        .join("instances")
-        .join(&instance_id)
-        .join(".minecraft");
-    tokio::fs::create_dir_all(&minecraft_dir).await?;
-
     if is_update {
         emit_progress(
             &app,
             &InstallProgress {
                 stage: InstallStage::Finalizing,
-                message: "Cleaning old files (keeping worlds)...".into(),
+                message: "Cleaning old files (keeping worlds and server list)...".into(),
                 current: 0,
                 total: 0,
                 bytes_downloaded: 0,
@@ -181,10 +242,9 @@ pub async fn install_from_github(
                 project_id: SLUG.to_string(),
             },
         );
-        clean_minecraft_dir_preserve_saves(&minecraft_dir).await?;
+        clean_game_dir_preserve_persistent(&game_dir).await?;
     }
 
-    // Filter: skip server-only files
     let mod_files: Vec<_> = index
         .files
         .iter()
@@ -221,10 +281,8 @@ pub async fn install_from_github(
             .first()
             .ok_or_else(|| GlowberryError::Other(format!("No download URL for {}", mf.path)))?
             .clone();
-
-        let dest = minecraft_dir.join(&mf.path);
+        let dest = game_dir.join(&mf.path);
         file_hashes.insert(mf.path.clone(), mf.hashes.sha512.clone());
-
         tasks.push(DownloadTask {
             url,
             dest,
@@ -238,7 +296,6 @@ pub async fn install_from_github(
         let dm = DownloadManager::new(client.clone());
         let completed = Arc::clone(&completed);
         let app_clone = app.clone();
-
         handles.push(tokio::spawn(async move {
             dm.download_file(&task).await?;
             let done = completed.fetch_add(1, Ordering::Relaxed) + 1;
@@ -257,7 +314,6 @@ pub async fn install_from_github(
             Ok::<(), GlowberryError>(())
         }));
     }
-
     for handle in handles {
         handle
             .await
@@ -277,14 +333,13 @@ pub async fn install_from_github(
         },
     );
 
-    let mc_dir_clone = minecraft_dir.clone();
-    let mrpack_path_clone2 = mrpack_path.clone();
+    let game_dir_clone = game_dir.clone();
+    let mrpack_clone2 = mrpack_for_parsing.clone();
+    let mut locked = std::collections::HashSet::new();
+    locked.insert("saves/".to_string());
+    locked.insert("servers.dat".to_string());
     let extracted = tokio::task::spawn_blocking(move || {
-        extract_overrides(
-            &mrpack_path_clone2,
-            &mc_dir_clone,
-            &std::collections::HashSet::new(),
-        )
+        extract_overrides(&mrpack_clone2, &game_dir_clone, &locked)
     })
     .await
     .map_err(|e| GlowberryError::Other(format!("Extract task failed: {e}")))??;
@@ -323,25 +378,23 @@ pub async fn install_from_github(
     );
 
     let manifest = serde_json::to_string_pretty(&file_hashes)?;
-    let instance_dir = state.data_dir.join("instances").join(&instance_id);
     tokio::fs::write(instance_dir.join("file_manifest.json"), manifest).await?;
 
-    let mrpack_path_clone3 = mrpack_path.clone();
+    let mrpack_clone3 = mrpack_for_parsing.clone();
     let index_json = tokio::task::spawn_blocking(move || -> Result<String, GlowberryError> {
-        let file = std::fs::File::open(&mrpack_path_clone3)?;
+        let file = std::fs::File::open(&mrpack_clone3)?;
         let mut archive = zip::ZipArchive::new(file)?;
-        let mut index_entry = archive.by_name("modrinth.index.json")?;
+        let mut entry = archive.by_name("modrinth.index.json")?;
         let mut contents = String::new();
-        std::io::Read::read_to_string(&mut index_entry, &mut contents)?;
+        std::io::Read::read_to_string(&mut entry, &mut contents)?;
         Ok(contents)
     })
     .await
     .map_err(|e| GlowberryError::Other(format!("Read index task failed: {e}")))??;
 
     tokio::fs::write(instance_dir.join("last_mrpack_index.json"), index_json).await?;
-    let _ = tokio::fs::remove_file(&mrpack_path).await;
+    let _ = tokio::fs::remove_file(&asset_path).await;
 
-    // Preserve memory_mb from an existing instance if we have one
     let memory_mb = {
         let instances = state.instances.lock().unwrap();
         instances
@@ -370,6 +423,7 @@ pub async fn install_from_github(
         last_played: None,
         jvm_args: Vec::new(),
         memory_mb,
+        active_preset,
     };
 
     {

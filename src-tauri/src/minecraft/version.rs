@@ -396,6 +396,60 @@ fn default_jvm_args(subs: &HashMap<&str, String>) -> Vec<String> {
     templates.iter().map(|t| substitute(t, subs)).collect()
 }
 
+/// On Linux aarch64, Mojang's version JSON only ships `natives-linux` (x86_64) JARs.
+/// This swaps every LWJGL `natives-linux` entry for a `natives-linux-arm64` one
+/// fetched from Maven Central, where LWJGL 3.3.x officially publishes arm64 builds.
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub fn patch_lwjgl_for_linux_arm64(libraries: &mut Vec<Library>) {
+    const MAVEN_CENTRAL: &str = "https://repo1.maven.org/maven2";
+
+    let mut replacements: Vec<(usize, Library)> = Vec::new();
+
+    for (i, lib) in libraries.iter().enumerate() {
+        if !lib.name.starts_with("org.lwjgl:") || !lib.name.ends_with(":natives-linux") {
+            continue;
+        }
+        let parts: Vec<&str> = lib.name.split(':').collect();
+        if parts.len() != 4 {
+            continue;
+        }
+        let group_path = parts[0].replace('.', "/");
+        let artifact = parts[1];
+        let version = parts[2];
+        let classifier = "natives-linux-arm64";
+        let filename = format!("{artifact}-{version}-{classifier}.jar");
+        let path = format!("{group_path}/{artifact}/{version}/{filename}");
+        let url = format!("{MAVEN_CENTRAL}/{path}");
+
+        replacements.push((
+            i,
+            Library {
+                name: format!("{}:{}:{}:{}", parts[0], parts[1], parts[2], classifier),
+                downloads: Some(LibraryDownloads {
+                    artifact: Some(LibraryArtifact {
+                        path,
+                        sha1: String::new(),
+                        size: 0,
+                        url,
+                    }),
+                }),
+                rules: Some(vec![Rule {
+                    action: "allow".to_string(),
+                    os: Some(OsRule {
+                        name: Some("linux".to_string()),
+                    }),
+                    features: None,
+                }]),
+                url: None,
+            },
+        ));
+    }
+
+    for (i, replacement) in replacements.into_iter().rev() {
+        libraries[i] = replacement;
+    }
+}
+
 // -- Fetch helpers for assets --
 
 pub async fn fetch_asset_index(

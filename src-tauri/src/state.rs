@@ -25,11 +25,28 @@ pub struct AppState {
     pub data_dir: PathBuf,
 }
 
+fn migrate_game_dirs(data_dir: &std::path::Path) {
+    let instances_dir = data_dir.join("instances");
+    if !instances_dir.exists() {
+        return;
+    }
+    if let Ok(entries) = std::fs::read_dir(&instances_dir) {
+        for entry in entries.flatten() {
+            let old = entry.path().join(".minecraft");
+            let new = entry.path().join("game");
+            if old.exists() && !new.exists() {
+                let _ = std::fs::rename(&old, &new);
+            }
+        }
+    }
+}
+
 impl AppState {
     pub fn new(data_dir: PathBuf) -> Self {
         std::fs::create_dir_all(&data_dir).expect("Failed to create data directory");
         std::fs::create_dir_all(data_dir.join("instances"))
             .expect("Failed to create instances dir");
+        migrate_game_dirs(&data_dir);
         std::fs::create_dir_all(data_dir.join("versions")).expect("Failed to create versions dir");
         std::fs::create_dir_all(data_dir.join("assets")).expect("Failed to create assets dir");
         std::fs::create_dir_all(data_dir.join("libraries"))

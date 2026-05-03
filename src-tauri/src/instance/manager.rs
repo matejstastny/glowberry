@@ -19,6 +19,8 @@ pub struct Instance {
     pub last_played: Option<DateTime<Utc>>,
     pub jvm_args: Vec<String>,
     pub memory_mb: u32,
+    #[serde(default)]
+    pub active_preset: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

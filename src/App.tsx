@@ -4,6 +4,7 @@ import { tryRestoreSession } from "@/api/auth";
 import { listInstances } from "@/api/instances";
 import { installStarlight } from "@/api/install";
 import { checkStarlightUpdate } from "@/api/github";
+import { listPresets, switchPreset, openDataFolder } from "@/api/presets";
 import { launchInstance } from "@/api/launch";
 import { check as checkAppUpdate, type Update as AppUpdate } from "@tauri-apps/plugin-updater";
 import { getVersion } from "@tauri-apps/api/app";
@@ -84,6 +85,10 @@ export default function App() {
 
     const [showSettings, setShowSettings] = useState(false);
 
+    const [presets, setPresets] = useState<string[]>([]);
+    const [switchingPreset, setSwitchingPreset] = useState(false);
+    const [presetWarning, setPresetWarning] = useState<string | null>(null);
+
     // Show the window once React has painted the first frame.
     // The window starts hidden (visible:false in tauri.conf.json) to avoid
     // the blank WebView2 flash on Windows before content is ready.
@@ -162,6 +167,25 @@ export default function App() {
         };
     }, []);
 
+    // Preset fallback notification (emitted by Rust when the previous preset no longer exists)
+    useEffect(() => {
+        let cancelled = false;
+        let unsub: (() => void) | null = null;
+
+        listen<{ requested: string; applied: string }>("preset-fallback", (e) => {
+            if (!cancelled) {
+                setPresetWarning(
+                    `Preset "${e.payload.requested}" is no longer available — switched to "${e.payload.applied}"`,
+                );
+            }
+        }).then((u) => (cancelled ? u() : (unsub = u)));
+
+        return () => {
+            cancelled = true;
+            unsub?.();
+        };
+    }, []);
+
     async function loadInstance() {
         try {
             const all = await listInstances();
@@ -171,6 +195,9 @@ export default function App() {
                 setInstance(found);
                 setPhase("ready");
                 checkUpdate(found);
+                listPresets(found.id)
+                    .then(setPresets)
+                    .catch(() => {});
             } else {
                 // First run — fetch latest release then install
                 setPhase("installing");
@@ -224,9 +251,33 @@ export default function App() {
             setInstance(installed);
             setPhase("ready");
             setUpdateAvailable(false);
+            listPresets(installed.id)
+                .then(setPresets)
+                .catch(() => {});
         } catch (e) {
             setErrorMsg(extractError(e));
             setPhase("error");
+        }
+    }
+
+    async function handleSwitchPreset(name: string) {
+        if (!instance || switchingPreset) return;
+        setSwitchingPreset(true);
+        try {
+            const updated = await switchPreset(instance.id, name);
+            setInstance(updated);
+        } catch (e) {
+            setPresetWarning(extractError(e));
+        } finally {
+            setSwitchingPreset(false);
+        }
+    }
+
+    async function handleOpenFolder() {
+        try {
+            await openDataFolder();
+        } catch {
+            // silently ignore — file manager may not be available
         }
     }
 
@@ -310,6 +361,13 @@ export default function App() {
             <div className={styles.topBar}>
                 <div className={styles.topBarDrag} data-tauri-drag-region />
                 <button
+                    className={styles.folderBtn}
+                    onClick={handleOpenFolder}
+                    title="Open data folder"
+                >
+                    <FolderIcon />
+                </button>
+                <button
                     className={styles.settingsBtn}
                     onClick={() => setShowSettings((v) => !v)}
                     title={showSettings ? "Home" : "Settings"}
@@ -384,6 +442,44 @@ export default function App() {
                         <div className={styles.packName}>Starlight</div>
                         {versionParts.length > 0 && (
                             <div className={styles.packVersion}>{versionParts.join(" · ")}</div>
+                        )}
+
+                        {/* Preset switcher — only shown when multiple presets exist */}
+                        {presets.length > 1 && (
+                            <div className={styles.presetRow}>
+                                {presets.map((preset) => (
+                                    <button
+                                        key={preset}
+                                        className={`${styles.presetBtn} ${
+                                            instance?.active_preset === preset
+                                                ? styles.presetBtnActive
+                                                : ""
+                                        }`}
+                                        onClick={() => handleSwitchPreset(preset)}
+                                        disabled={
+                                            busy ||
+                                            switchingPreset ||
+                                            instance?.active_preset === preset
+                                        }
+                                        title={preset}
+                                    >
+                                        {preset}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Preset fallback warning */}
+                        {presetWarning && (
+                            <div className={styles.presetWarning}>
+                                <span className={styles.presetWarningText}>{presetWarning}</span>
+                                <button
+                                    className={styles.dismissBtn}
+                                    onClick={() => setPresetWarning(null)}
+                                >
+                                    ×
+                                </button>
+                            </div>
                         )}
 
                         {/* Play button */}
@@ -572,6 +668,23 @@ function HomeIcon() {
         >
             <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z" />
             <path d="M9 21V12h6v9" />
+        </svg>
+    );
+}
+
+function FolderIcon() {
+    return (
+        <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        >
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
         </svg>
     );
 }

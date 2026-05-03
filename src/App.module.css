@@ -35,7 +35,8 @@
     cursor: default;
 }
 
-.settingsBtn {
+.settingsBtn,
+.folderBtn {
     /* no longer position:absolute – it lives inside .topBar */
     z-index: 120;
     width: 28px;
@@ -53,7 +54,8 @@
         background var(--transition);
 }
 
-.settingsBtn:hover {
+.settingsBtn:hover,
+.folderBtn:hover {
     color: var(--text-secondary);
     background: var(--bg-card);
 }
@@ -124,7 +126,78 @@
 .packVersion {
     font-size: 12px;
     color: var(--text-muted);
-    margin-bottom: 18px;
+    margin-bottom: 10px;
+}
+
+/* ── Preset switcher ────────────────────────────────────────── */
+
+.presetRow {
+    display: flex;
+    margin-bottom: 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    max-width: 176px;
+    width: 176px;
+}
+
+.presetBtn {
+    flex: 1;
+    height: 26px;
+    min-width: 0;
+    background: transparent;
+    border: none;
+    border-left: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all var(--transition);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0 6px;
+}
+
+.presetBtn:first-child {
+    border-left: none;
+}
+
+.presetBtn:hover:not(.presetBtnActive):not(:disabled) {
+    background: var(--bg-card);
+    color: var(--text-secondary);
+}
+
+.presetBtnActive {
+    background: var(--accent-soft);
+    color: var(--accent);
+    cursor: default;
+}
+
+.presetBtnActive:disabled {
+    opacity: 1;
+}
+
+/* Preset fallback warning */
+.presetWarning {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    margin-bottom: 8px;
+    background: rgba(212, 162, 76, 0.08);
+    border: 1px solid rgba(212, 162, 76, 0.25);
+    border-radius: var(--radius-sm);
+    width: 176px;
+}
+
+.presetWarningText {
+    flex: 1;
+    font-size: 10px;
+    color: var(--accent);
+    line-height: 1.4;
+    overflow: hidden;
 }
 
 .playBtn {
