@@ -38,6 +38,11 @@ pub fn run() {
             commands::github::check_starlight_update,
             // Launch
             commands::launch::launch_instance,
+            // Presets
+            commands::presets::list_presets,
+            commands::presets::switch_preset,
+            // Folder
+            commands::folder::open_data_folder,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Glowberry");

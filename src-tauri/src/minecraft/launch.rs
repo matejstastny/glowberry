@@ -83,7 +83,7 @@ pub async fn launch_instance(
     .await?;
 
     // 3. If using a mod loader, merge version JSONs
-    let version_json = match (&instance.loader, &instance.loader_version) {
+    let mut version_json = match (&instance.loader, &instance.loader_version) {
         (ModLoader::Fabric, Some(loader_ver)) => {
             let fabric_json_path = super::fabric::install_fabric(
                 client,
@@ -98,6 +98,13 @@ pub async fn launch_instance(
         }
         _ => vanilla_json,
     };
+
+    // On Linux aarch64, replace x86_64 LWJGL natives with arm64 equivalents.
+    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+    {
+        eprintln!("[launch] Patching LWJGL natives for Linux aarch64...");
+        super::version::patch_lwjgl_for_linux_arm64(&mut version_json.libraries);
+    }
 
     // 4. Download client JAR
     let client_jar =
@@ -119,7 +126,7 @@ pub async fn launch_instance(
         .data_dir
         .join("instances")
         .join(&instance.id)
-        .join(".minecraft");
+        .join("game");
 
     let natives_dir = data_dir
         .join("versions")
@@ -194,6 +201,41 @@ pub async fn launch_instance(
     ];
     memory_args.extend(instance.jvm_args.clone());
 
+    // On Linux, inject HiDPI fixes.
+    //
+    // The root cause of Minecraft looking pixelated on HiDPI Wayland displays is
+    // that Minecraft's bundled GLFW falls back to XWayland, which has no HiDPI
+    // support. If a Wayland-capable system GLFW is installed (e.g. from the
+    // lyessaadi/minecraft-wayland-glfw Fedora COPR), override the LWJGL GLFW
+    // library path so Minecraft uses it instead of its bundled one. That lets
+    // GLFW negotiate the correct framebuffer scale with the Wayland compositor.
+    #[cfg(target_os = "linux")]
+    {
+        const GLFW_CANDIDATES: &[&str] = &[
+            "/usr/lib/libglfw.so",
+            "/usr/lib/libglfw.so.3",
+            "/usr/lib64/libglfw.so",
+            "/usr/lib64/libglfw.so.3",
+            "/usr/local/lib/libglfw.so",
+            "/usr/local/lib/libglfw.so.3",
+        ];
+        if let Some(glfw_path) = GLFW_CANDIDATES.iter().find(|p| std::path::Path::new(p).exists()) {
+            eprintln!("[launch] Found system GLFW at {glfw_path}, enabling Wayland HiDPI mode");
+            memory_args.push(format!("-Dorg.lwjgl.glfw.libname={glfw_path}"));
+        }
+
+        // Also scale Java2D (AWT/menus) to match the physical display scale.
+        let scale = app
+            .primary_monitor()
+            .ok()
+            .flatten()
+            .map(|m| m.scale_factor())
+            .unwrap_or(1.0);
+        if scale > 1.0 {
+            memory_args.push(format!("-Dsun.java2d.uiScale={}", scale.ceil() as u32));
+        }
+    }
+
     // 10. Ensure game directory exists
     tokio::fs::create_dir_all(&minecraft_dir).await?;
 
@@ -215,6 +257,16 @@ pub async fn launch_instance(
     cmd.current_dir(&minecraft_dir);
     cmd.stdout(std::process::Stdio::piped());
     cmd.stderr(std::process::Stdio::piped());
+
+    // On Linux, these env vars improve behaviour under Wayland compositors:
+    // - _JAVA_AWT_WM_NONREPARENTING: prevents AWT window-reparenting issues
+    // - GDK_SCALE=1: stops GDK from adding its own scaling on top of the
+    //   compositor's, which would otherwise double-scale Java windows
+    #[cfg(target_os = "linux")]
+    {
+        cmd.env("_JAVA_AWT_WM_NONREPARENTING", "1");
+        cmd.env("GDK_SCALE", "1");
+    }
 
     // On Windows, java.exe is a console-subsystem binary — without this flag
     // it opens a visible terminal window every time Minecraft launches.
@@ -409,7 +461,10 @@ async fn download_libraries(
             continue;
         }
 
-        let hash = sha1.map(ExpectedHash::Sha1).unwrap_or(ExpectedHash::None);
+        let hash = match sha1 {
+            Some(s) if !s.is_empty() => ExpectedHash::Sha1(s),
+            _ => ExpectedHash::None,
+        };
         let dm = Arc::clone(&dm);
 
         handles.push(tokio::spawn(async move {

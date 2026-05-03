@@ -9,13 +9,13 @@ const GITHUB_REPO: &str = "matejstastny/starlight";
 #[derive(Debug, Clone, Serialize)]
 pub struct GithubRelease {
     pub tag: String,
-    pub mrpack_url: String,
-    pub mrpack_name: String,
-    pub mrpack_size: u64,
+    pub asset_url: String,
+    pub asset_name: String,
+    pub asset_size: u64,
 }
 
 /// Fetch the latest GitHub release for the Starlight modpack.
-/// Returns `None` if there are no releases yet or no client mrpack asset is attached.
+/// Returns `None` if there are no releases yet or no presets zip asset is attached.
 #[tauri::command]
 pub async fn check_starlight_update(
     state: State<'_, AppState>,
@@ -30,7 +30,6 @@ pub async fn check_starlight_update(
         .send()
         .await?;
 
-    // 404 = no releases yet
     if resp.status().as_u16() == 404 {
         return Ok(None);
     }
@@ -51,31 +50,42 @@ pub async fn check_starlight_update(
         None => return Ok(None),
     };
 
-    // Find the *-client.mrpack asset — absent if the release is still being published
-    let asset = match assets.iter().find(|a| {
-        a["name"]
-            .as_str()
-            .is_some_and(|n| n.ends_with("-client.mrpack"))
-    }) {
+    // Prefer a presets zip; fall back to a plain client mrpack for older releases.
+    let asset = assets
+        .iter()
+        .find(|a| {
+            a["name"]
+                .as_str()
+                .is_some_and(|n| n.ends_with("-client-presets.zip"))
+        })
+        .or_else(|| {
+            assets.iter().find(|a| {
+                a["name"]
+                    .as_str()
+                    .is_some_and(|n| n.ends_with("-client.mrpack"))
+            })
+        });
+
+    let asset = match asset {
         Some(a) => a,
         None => return Ok(None),
     };
 
-    let mrpack_url = asset["browser_download_url"]
+    let asset_url = asset["browser_download_url"]
         .as_str()
         .unwrap_or("")
         .to_string();
-    let mrpack_name = asset["name"].as_str().unwrap_or("").to_string();
-    let mrpack_size = asset["size"].as_u64().unwrap_or(0);
+    let asset_name = asset["name"].as_str().unwrap_or("").to_string();
+    let asset_size = asset["size"].as_u64().unwrap_or(0);
 
-    if mrpack_url.is_empty() {
+    if asset_url.is_empty() {
         return Ok(None);
     }
 
     Ok(Some(GithubRelease {
         tag,
-        mrpack_url,
-        mrpack_name,
-        mrpack_size,
+        asset_url,
+        asset_name,
+        asset_size,
     }))
 }

@@ -7,9 +7,9 @@ export async function installModpack(projectId: string, versionId: string): Prom
 
 export async function installStarlight(release: GithubRelease): Promise<Instance> {
     return invoke("install_starlight", {
-        mrpackUrl: release.mrpack_url,
-        mrpackName: release.mrpack_name,
-        mrpackSize: release.mrpack_size,
+        assetUrl: release.asset_url,
+        assetName: release.asset_name,
+        assetSize: release.asset_size,
         versionTag: release.tag,
     });
 }

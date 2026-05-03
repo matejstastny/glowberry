@@ -99,10 +99,9 @@ pub async fn start_login(
 
             eprintln!("[auth] login complete: {}", profile.name);
 
-            keychain::save_refresh_token(&auth_tokens.msa_refresh_token)?;
-
             {
                 let state = app_bg.state::<AppState>();
+                keychain::save_refresh_token(&auth_tokens.msa_refresh_token, &state.data_dir)?;
                 let mut auth = state.auth.lock().unwrap();
                 auth.profile = Some(profile.clone());
                 auth.tokens = Some(auth_tokens);
@@ -154,7 +153,7 @@ pub fn get_auth_status(state: State<'_, AppState>) -> Option<MinecraftProfile> {
 pub async fn try_restore_session(
     state: State<'_, AppState>,
 ) -> Result<Option<MinecraftProfile>, GlowberryError> {
-    let refresh_token = match keychain::load_refresh_token()? {
+    let refresh_token = match keychain::load_refresh_token(&state.data_dir)? {
         Some(t) => t,
         None => return Ok(None),
     };
@@ -165,7 +164,7 @@ pub async fn try_restore_session(
         Ok(tokens) => tokens,
         Err(e) => {
             eprintln!("[auth] refresh failed: {e}");
-            let _ = keychain::delete_refresh_token();
+            let _ = keychain::delete_refresh_token(&state.data_dir);
             return Ok(None);
         }
     };
@@ -181,14 +180,14 @@ pub async fn try_restore_session(
         Ok(result) => result,
         Err(e) => {
             eprintln!("[auth] token exchange failed during restore: {e}");
-            let _ = keychain::delete_refresh_token();
+            let _ = keychain::delete_refresh_token(&state.data_dir);
             return Ok(None);
         }
     };
 
     eprintln!("[auth] session restored: {}", profile.name);
 
-    keychain::save_refresh_token(&auth_tokens.msa_refresh_token)?;
+    keychain::save_refresh_token(&auth_tokens.msa_refresh_token, &state.data_dir)?;
 
     {
         let mut auth = state.auth.lock().unwrap();
@@ -207,7 +206,7 @@ pub fn logout(state: State<'_, AppState>) -> Result<(), GlowberryError> {
         auth.profile = None;
         auth.tokens = None;
     }
-    keychain::delete_refresh_token()?;
+    keychain::delete_refresh_token(&state.data_dir)?;
     eprintln!("[auth] logged out");
     Ok(())
 }

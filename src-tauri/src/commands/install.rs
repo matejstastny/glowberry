@@ -5,20 +5,19 @@ use crate::instance::manager::Instance;
 use crate::minecraft::install;
 use crate::state::AppState;
 
-/// Install (or update in place) the Starlight modpack from a GitHub release URL.
+/// Install (or update in place) the Starlight modpack from a GitHub release asset.
 #[tauri::command]
 pub async fn install_starlight(
     app: AppHandle,
     state: State<'_, AppState>,
-    mrpack_url: String,
-    mrpack_name: String,
-    mrpack_size: u64,
+    asset_url: String,
+    asset_name: String,
+    asset_size: u64,
     version_tag: String,
 ) -> Result<Instance, GlowberryError> {
-    // Find existing Starlight instance to reuse its ID (in-place update)
-    let existing_id = {
+    let (existing_id, existing_active_preset) = {
         let instances = state.instances.lock().unwrap();
-        instances
+        let existing = instances
             .list()
             .unwrap_or_default()
             .into_iter()
@@ -26,18 +25,22 @@ pub async fn install_starlight(
                 i.modpack
                     .as_ref()
                     .is_some_and(|m| m.project_slug == "starlightmodpack")
-            })
-            .map(|i| i.id)
+            });
+        (
+            existing.as_ref().map(|i| i.id.clone()),
+            existing.and_then(|i| i.active_preset),
+        )
     };
 
     install::install_from_github(
         app,
         &state,
-        mrpack_url,
-        mrpack_name,
-        mrpack_size,
+        asset_url,
+        asset_name,
+        asset_size,
         version_tag,
         existing_id,
+        existing_active_preset,
     )
     .await
 }
