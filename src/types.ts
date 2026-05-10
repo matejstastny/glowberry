@@ -36,6 +36,14 @@ export interface MinecraftProfile {
     name: string;
 }
 
+export interface DeviceCodeInfo {
+    user_code: string;
+    verification_uri: string;
+    expires_in: number;
+    interval: number;
+    device_code: string;
+}
+
 export interface InstallProgress {
     stage:
         | "downloading"

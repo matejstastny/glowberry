@@ -1,10 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { MinecraftProfile } from "@/types";
+import type { DeviceCodeInfo, MinecraftProfile } from "@/types";
 
-/** Open the Microsoft login webview. Returns the auth URL for QR code display.
- *  Listen for "auth-complete" and "auth-error" events for the result. */
-export async function startLogin(): Promise<string> {
-    return invoke<string>("start_login");
+/** Start the device-code login flow. Returns the user code and verification URL
+ *  to display. Listen for "auth-complete" and "auth-error" events for the result. */
+export async function startLogin(): Promise<DeviceCodeInfo> {
+    return invoke<DeviceCodeInfo>("start_login");
 }
 
 /** Cancel an in-progress login (closes the webview). */

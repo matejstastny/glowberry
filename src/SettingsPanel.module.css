@@ -139,6 +139,15 @@
     text-decoration: underline;
 }
 
+.userCode {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+    padding: 2px 0;
+}
+
 .loginWaiting {
     display: flex;
     align-items: center;
