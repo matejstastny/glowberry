@@ -30,7 +30,7 @@ interface Props {
 
 type LoginState =
     | { step: "idle" }
-    | { step: "waiting"; userCode: string; verificationUri: string; qrDataUrl: string }
+    | { step: "waiting"; authUrl: string; qrDataUrl: string }
     | { step: "error"; message: string };
 
 export default function SettingsPanel({
@@ -62,20 +62,15 @@ export default function SettingsPanel({
     async function handleSignIn() {
         setLoginState({ step: "idle" });
         try {
-            const info = await startLogin();
+            const authUrl = await startLogin();
 
-            const qrDataUrl = await QRCode.toDataURL(info.verification_uri, {
+            const qrDataUrl = await QRCode.toDataURL(authUrl, {
                 width: 180,
                 margin: 2,
                 color: { dark: "#e2e0dc", light: "#0e0f14" },
             });
 
-            setLoginState({
-                step: "waiting",
-                userCode: info.user_code,
-                verificationUri: info.verification_uri,
-                qrDataUrl,
-            });
+            setLoginState({ step: "waiting", authUrl, qrDataUrl });
 
             const unlistenComplete = await listen<{ profile: MinecraftProfile }>(
                 "auth-complete",
@@ -146,16 +141,14 @@ export default function SettingsPanel({
                                     alt="QR code"
                                 />
                                 <div className={styles.loginHint}>
-                                    Scan the QR code or{" "}
+                                    Sign in via the window that opened, or{" "}
                                     <button
                                         className={styles.linkBtn}
-                                        onClick={() => openUrl(loginState.verificationUri)}
+                                        onClick={() => openUrl(loginState.authUrl)}
                                     >
                                         open in browser
                                     </button>
-                                    , then enter:
                                 </div>
-                                <div className={styles.userCode}>{loginState.userCode}</div>
                                 <div className={styles.loginWaiting}>
                                     <Spinner size={13} />
                                     <span>Waiting for sign-in...</span>
