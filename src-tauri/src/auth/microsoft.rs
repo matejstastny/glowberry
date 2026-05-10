@@ -1,12 +1,13 @@
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 use crate::error::GlowberryError;
 
 const CLIENT_ID: &str = "00000000402b5328";
-const MSA_AUTHORIZE_URL: &str = "https://login.live.com/oauth20_authorize.srf";
-const MSA_TOKEN_URL: &str = "https://login.live.com/oauth20_token.srf";
-const MSA_SCOPE: &str = "service::user.auth.xboxlive.com::MBI_SSL";
-pub const REDIRECT_URI: &str = "https://login.live.com/oauth20_desktop.srf";
+const DEVICE_CODE_URL: &str =
+    "https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode";
+const TOKEN_URL: &str = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token";
+const DEVICE_CODE_SCOPE: &str = "XboxLive.signin offline_access";
 
 // Types -----------------------------------------------------------------
 
@@ -22,13 +23,40 @@ pub struct AuthTokens {
     pub msa_refresh_token: String,
 }
 
+/// Returned to the frontend so it can render the QR code and user code.
+#[derive(Debug, Clone, Serialize)]
+pub struct DeviceCodeInfo {
+    pub user_code: String,
+    pub verification_uri: String,
+    pub expires_in: u64,
+    pub interval: u64,
+    /// Internal code used to poll for the token — not shown to the user.
+    pub device_code: String,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct MsaTokenResponse {
     pub access_token: String,
     pub refresh_token: String,
 }
 
-// Token exchange types --------------------------------------------------
+// Internal types --------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+struct DeviceCodeResponse {
+    device_code: String,
+    user_code: String,
+    verification_uri: String,
+    expires_in: u64,
+    interval: u64,
+}
+
+#[derive(Debug, Deserialize)]
+struct PollResponse {
+    access_token: Option<String>,
+    refresh_token: Option<String>,
+    error: Option<String>,
+}
 
 #[derive(Debug, Deserialize)]
 struct XblResponse {
@@ -67,42 +95,81 @@ struct MinecraftProfileResponse {
 
 // Public ----------------------------------------------------------------
 
-pub fn build_auth_url() -> String {
-    format!(
-        "{MSA_AUTHORIZE_URL}?client_id={CLIENT_ID}\
-         &response_type=code\
-         &redirect_uri={REDIRECT_URI}\
-         &scope={MSA_SCOPE}\
-         &prompt=select_account"
-    )
-}
-
-pub async fn exchange_auth_code(
+pub async fn request_device_code(
     client: &reqwest::Client,
-    code: &str,
-) -> Result<MsaTokenResponse, GlowberryError> {
+) -> Result<DeviceCodeInfo, GlowberryError> {
     let resp = client
-        .post(MSA_TOKEN_URL)
-        .form(&[
-            ("client_id", CLIENT_ID),
-            ("grant_type", "authorization_code"),
-            ("code", code),
-            ("redirect_uri", REDIRECT_URI),
-            ("scope", MSA_SCOPE),
-        ])
+        .post(DEVICE_CODE_URL)
+        .form(&[("client_id", CLIENT_ID), ("scope", DEVICE_CODE_SCOPE)])
         .send()
         .await?;
 
     let status = resp.status();
     let body = resp.text().await?;
     if !status.is_success() {
-        eprintln!("[auth] MSA token exchange failed ({status}): {body}");
+        eprintln!("[auth] device code request failed ({status}): {body}");
         return Err(GlowberryError::Auth(format!(
-            "Microsoft token exchange failed ({status})"
+            "Failed to start device login ({status})"
         )));
     }
 
-    serde_json::from_str(&body).map_err(|e| GlowberryError::Auth(e.to_string()))
+    let parsed: DeviceCodeResponse =
+        serde_json::from_str(&body).map_err(|e| GlowberryError::Auth(e.to_string()))?;
+
+    Ok(DeviceCodeInfo {
+        user_code: parsed.user_code,
+        verification_uri: parsed.verification_uri,
+        expires_in: parsed.expires_in,
+        interval: parsed.interval,
+        device_code: parsed.device_code,
+    })
+}
+
+pub enum PollOutcome {
+    Pending,
+    SlowDown,
+    Tokens(MsaTokenResponse),
+}
+
+/// Poll once. Returns `Pending`/`SlowDown` when the user hasn't completed
+/// auth yet, `Tokens` on success, or an error for expired/denied/other.
+pub async fn poll_device_token(
+    client: &reqwest::Client,
+    device_code: &str,
+) -> Result<PollOutcome, GlowberryError> {
+    let resp = client
+        .post(TOKEN_URL)
+        .form(&[
+            ("client_id", CLIENT_ID),
+            (
+                "grant_type",
+                "urn:ietf:params:oauth:grant-type:device_code",
+            ),
+            ("device_code", device_code),
+        ])
+        .send()
+        .await?;
+
+    let body = resp.text().await?;
+    let parsed: PollResponse =
+        serde_json::from_str(&body).map_err(|e| GlowberryError::Auth(e.to_string()))?;
+
+    if let (Some(access_token), Some(refresh_token)) = (parsed.access_token, parsed.refresh_token)
+    {
+        return Ok(PollOutcome::Tokens(MsaTokenResponse {
+            access_token,
+            refresh_token,
+        }));
+    }
+
+    match parsed.error.as_deref() {
+        Some("authorization_pending") => Ok(PollOutcome::Pending),
+        Some("slow_down") => Ok(PollOutcome::SlowDown),
+        Some("expired_token") => Err(GlowberryError::Auth("Device code expired".into())),
+        Some("access_denied") => Err(GlowberryError::Auth("Sign-in was declined".into())),
+        Some(other) => Err(GlowberryError::Auth(format!("Token poll error: {other}"))),
+        None => Err(GlowberryError::Auth("Unexpected poll response".into())),
+    }
 }
 
 pub async fn refresh_msa_token(
@@ -110,12 +177,12 @@ pub async fn refresh_msa_token(
     refresh_token: &str,
 ) -> Result<MsaTokenResponse, GlowberryError> {
     let resp = client
-        .post(MSA_TOKEN_URL)
+        .post(TOKEN_URL)
         .form(&[
             ("client_id", CLIENT_ID),
             ("grant_type", "refresh_token"),
             ("refresh_token", refresh_token),
-            ("scope", MSA_SCOPE),
+            ("scope", DEVICE_CODE_SCOPE),
         ])
         .send()
         .await?;
@@ -134,14 +201,9 @@ pub async fn refresh_msa_token(
 async fn exchange_xbl_token(
     client: &reqwest::Client,
     msa_access_token: &str,
-    // live.com tokens: use as-is; OAuth2 device-code tokens: prepend "d="
-    use_d_prefix: bool,
 ) -> Result<(String, String), GlowberryError> {
-    let rps_ticket = if use_d_prefix {
-        format!("d={msa_access_token}")
-    } else {
-        msa_access_token.to_string()
-    };
+    // Azure AD / device-code tokens require the "d=" prefix.
+    let rps_ticket = format!("d={msa_access_token}");
 
     let body = serde_json::json!({
         "Properties": {
@@ -270,15 +332,13 @@ pub async fn get_minecraft_profile(
 }
 
 /// Full exchange chain: MSA access token → Minecraft access token + profile.
-/// `use_d_prefix`: false for live.com tokens, true for OAuth2 device-code tokens.
 pub async fn full_token_exchange(
     client: &reqwest::Client,
     msa_access_token: &str,
     msa_refresh_token: &str,
-    use_d_prefix: bool,
 ) -> Result<(AuthTokens, MinecraftProfile), GlowberryError> {
     eprintln!("[auth] XBL exchange...");
-    let (xbl_token, user_hash) = exchange_xbl_token(client, msa_access_token, use_d_prefix).await?;
+    let (xbl_token, user_hash) = exchange_xbl_token(client, msa_access_token).await?;
     eprintln!("[auth] XSTS exchange...");
     let xsts_token = exchange_xsts_token(client, &xbl_token).await?;
     eprintln!("[auth] Minecraft token...");
@@ -292,4 +352,8 @@ pub async fn full_token_exchange(
     };
 
     Ok((tokens, profile))
+}
+
+pub fn poll_interval(base: u64, slow_downs: u32) -> Duration {
+    Duration::from_secs(base + u64::from(slow_downs) * 5)
 }

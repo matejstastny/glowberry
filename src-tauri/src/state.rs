@@ -1,5 +1,6 @@
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::atomic::AtomicBool;
+use std::sync::{Arc, Mutex};
 
 use crate::auth::microsoft::{AuthTokens, MinecraftProfile};
 use crate::instance::manager::InstanceManager;
@@ -23,6 +24,8 @@ pub struct AppState {
     pub instances: Mutex<InstanceManager>,
     pub auth: Mutex<AuthState>,
     pub data_dir: PathBuf,
+    /// Set to true by cancel_login to abort an in-progress device code poll.
+    pub login_cancelled: Arc<AtomicBool>,
 }
 
 fn migrate_game_dirs(data_dir: &std::path::Path) {
@@ -61,6 +64,7 @@ impl AppState {
             instances: Mutex::new(InstanceManager::new(data_dir.join("instances"))),
             auth: Mutex::new(AuthState::new()),
             data_dir,
+            login_cancelled: Arc::new(AtomicBool::new(false)),
         }
     }
 }
