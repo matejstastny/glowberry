@@ -4,6 +4,31 @@ use std::path::Path;
 use crate::error::GlowberryError;
 use crate::modrinth::types::MrpackIndex;
 
+const LOCKED: &[&str] = &[
+    "saves/",
+    "servers.dat",
+    "cherishedworlds-favorites.dat",
+    "journeymap",
+    "xaero",
+    "bluemap",
+    "schematics/",
+    "screenshots/",
+];
+
+pub fn is_path_locked(path: &str) -> bool {
+    LOCKED.iter().any(|l| {
+        if l.ends_with('/') {
+            path.starts_with(l) || path.trim_end_matches('/') == l.trim_end_matches('/')
+        } else {
+            path == *l
+        }
+    })
+}
+
+pub fn locked_paths() -> std::collections::HashSet<String> {
+    LOCKED.iter().map(|s| s.to_string()).collect()
+}
+
 pub fn parse_mrpack(path: &Path) -> Result<MrpackIndex, GlowberryError> {
     let file = std::fs::File::open(path)?;
     let mut archive = zip::ZipArchive::new(file)?;
@@ -19,7 +44,6 @@ pub fn parse_mrpack(path: &Path) -> Result<MrpackIndex, GlowberryError> {
 pub fn extract_overrides(
     mrpack_path: &Path,
     target_dir: &Path,
-    locked_files: &std::collections::HashSet<String>,
 ) -> Result<Vec<String>, GlowberryError> {
     let file = std::fs::File::open(mrpack_path)?;
     let mut archive = zip::ZipArchive::new(file)?;
@@ -29,7 +53,6 @@ pub fn extract_overrides(
         let mut entry = archive.by_index(i)?;
         let raw_name = entry.name().to_string();
 
-        // Process both overrides/ and client-overrides/ directories
         let relative_path = if let Some(rest) = raw_name.strip_prefix("client-overrides/") {
             rest.to_string()
         } else if let Some(rest) = raw_name.strip_prefix("overrides/") {
@@ -38,17 +61,7 @@ pub fn extract_overrides(
             continue;
         };
 
-        if relative_path.is_empty() {
-            continue;
-        }
-
-        // Skip locked files
-        let is_locked = locked_files.contains(&relative_path)
-            || locked_files
-                .iter()
-                .any(|l| l.ends_with('/') && relative_path.starts_with(l.as_str()));
-
-        if is_locked {
+        if relative_path.is_empty() || is_path_locked(&relative_path) {
             continue;
         }
 

@@ -10,7 +10,7 @@ use crate::download::manager::{DownloadManager, DownloadTask, ExpectedHash};
 use crate::error::GlowberryError;
 use crate::instance::manager::{Instance, ModLoader, ModpackInfo};
 use crate::modrinth::api::ModrinthApi;
-use crate::modrinth::mrpack::{extract_overrides, parse_mrpack};
+use crate::modrinth::mrpack::{extract_overrides, is_path_locked, parse_mrpack};
 use crate::modrinth::types::EnvSupport;
 use crate::state::AppState;
 
@@ -41,7 +41,7 @@ fn emit_progress(app: &AppHandle, progress: &InstallProgress) {
     let _ = app.emit("install-progress", progress);
 }
 
-/// Clean game dir, keeping saves/ and servers.dat intact.
+/// Clean game dir, keeping locked files intact.
 async fn clean_game_dir_preserve_persistent(game_dir: &Path) -> Result<(), GlowberryError> {
     if !game_dir.exists() {
         return Ok(());
@@ -50,7 +50,7 @@ async fn clean_game_dir_preserve_persistent(game_dir: &Path) -> Result<(), Glowb
     while let Some(entry) = entries.next_entry().await? {
         let name = entry.file_name();
         let name_str = name.to_string_lossy();
-        if name_str == "saves" || name_str == "servers.dat" {
+        if is_path_locked(&name_str) {
             continue;
         }
         let path = entry.path();
@@ -279,6 +279,9 @@ pub async fn install_from_github(
     let mut file_hashes: HashMap<String, String> = HashMap::new();
 
     for mf in &mod_files {
+        if is_path_locked(&mf.path) {
+            continue;
+        }
         let url = mf
             .downloads
             .first()
@@ -338,11 +341,8 @@ pub async fn install_from_github(
 
     let game_dir_clone = game_dir.clone();
     let mrpack_clone2 = mrpack_for_parsing.clone();
-    let mut locked = std::collections::HashSet::new();
-    locked.insert("saves/".to_string());
-    locked.insert("servers.dat".to_string());
     let extracted = tokio::task::spawn_blocking(move || {
-        extract_overrides(&mrpack_clone2, &game_dir_clone, &locked)
+        extract_overrides(&mrpack_clone2, &game_dir_clone)
     })
     .await
     .map_err(|e| GlowberryError::Other(format!("Extract task failed: {e}")))??;

@@ -57,19 +57,10 @@ pub async fn switch_preset(
     let game_dir = instance_dir.join("game");
     tokio::fs::create_dir_all(&game_dir).await?;
 
-    let mut locked = std::collections::HashSet::new();
-    locked.insert("saves/".to_string());
-    locked.insert("servers.dat".to_string());
-    locked.insert("journeymap".to_string());
-    locked.insert("xaero".to_string());
-    locked.insert("bluemap".to_string());
-    locked.insert("schematics/".to_string());
-    locked.insert("screenshots/".to_string());
-
     let preset_path_clone = preset_path.clone();
     let game_dir_clone = game_dir.clone();
     tokio::task::spawn_blocking(move || {
-        extract_overrides(&preset_path_clone, &game_dir_clone, &locked)
+        extract_overrides(&preset_path_clone, &game_dir_clone)
     })
     .await
     .map_err(|e| GlowberryError::Other(format!("Extract task failed: {e}")))??;
