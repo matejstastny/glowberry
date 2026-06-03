@@ -341,11 +341,10 @@ pub async fn install_from_github(
 
     let game_dir_clone = game_dir.clone();
     let mrpack_clone2 = mrpack_for_parsing.clone();
-    let extracted = tokio::task::spawn_blocking(move || {
-        extract_overrides(&mrpack_clone2, &game_dir_clone)
-    })
-    .await
-    .map_err(|e| GlowberryError::Other(format!("Extract task failed: {e}")))??;
+    let extracted =
+        tokio::task::spawn_blocking(move || extract_overrides(&mrpack_clone2, &game_dir_clone))
+            .await
+            .map_err(|e| GlowberryError::Other(format!("Extract task failed: {e}")))??;
 
     for path in &extracted {
         file_hashes.insert(path.clone(), String::new());

@@ -59,11 +59,9 @@ pub async fn switch_preset(
 
     let preset_path_clone = preset_path.clone();
     let game_dir_clone = game_dir.clone();
-    tokio::task::spawn_blocking(move || {
-        extract_overrides(&preset_path_clone, &game_dir_clone)
-    })
-    .await
-    .map_err(|e| GlowberryError::Other(format!("Extract task failed: {e}")))??;
+    tokio::task::spawn_blocking(move || extract_overrides(&preset_path_clone, &game_dir_clone))
+        .await
+        .map_err(|e| GlowberryError::Other(format!("Extract task failed: {e}")))??;
 
     let mut instance = {
         let instances = state.instances.lock().unwrap();
