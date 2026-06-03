@@ -65,7 +65,10 @@ async fn clean_game_dir_preserve_persistent(game_dir: &Path) -> Result<(), Glowb
 
 /// Extract each top-level *.mrpack from a zip into presets_dir.
 /// Returns the sorted list of preset names (file stems).
-fn extract_preset_mrpacks(zip_path: &Path, presets_dir: &Path) -> Result<Vec<String>, GlowberryError> {
+fn extract_preset_mrpacks(
+    zip_path: &Path,
+    presets_dir: &Path,
+) -> Result<Vec<String>, GlowberryError> {
     let file = std::fs::File::open(zip_path)?;
     let mut archive = zip::ZipArchive::new(file)?;
     let mut names = Vec::new();

@@ -17,15 +17,11 @@ pub async fn install_starlight(
 ) -> Result<Instance, GlowberryError> {
     let (existing_id, existing_active_preset) = {
         let instances = state.instances.lock().unwrap();
-        let existing = instances
-            .list()
-            .unwrap_or_default()
-            .into_iter()
-            .find(|i| {
-                i.modpack
-                    .as_ref()
-                    .is_some_and(|m| m.project_slug == "starlightmodpack")
-            });
+        let existing = instances.list().unwrap_or_default().into_iter().find(|i| {
+            i.modpack
+                .as_ref()
+                .is_some_and(|m| m.project_slug == "starlightmodpack")
+        });
         (
             existing.as_ref().map(|i| i.id.clone()),
             existing.and_then(|i| i.active_preset),

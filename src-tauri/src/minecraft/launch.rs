@@ -219,7 +219,10 @@ pub async fn launch_instance(
             "/usr/local/lib/libglfw.so",
             "/usr/local/lib/libglfw.so.3",
         ];
-        if let Some(glfw_path) = GLFW_CANDIDATES.iter().find(|p| std::path::Path::new(p).exists()) {
+        if let Some(glfw_path) = GLFW_CANDIDATES
+            .iter()
+            .find(|p| std::path::Path::new(p).exists())
+        {
             eprintln!("[launch] Found system GLFW at {glfw_path}, enabling Wayland HiDPI mode");
             memory_args.push(format!("-Dorg.lwjgl.glfw.libname={glfw_path}"));
         }

@@ -106,7 +106,12 @@ pub async fn start_login(
             }
             Err(e) => {
                 eprintln!("[auth] login failed: {e}");
-                let _ = app_bg.emit("auth-error", AuthError { message: e.to_string() });
+                let _ = app_bg.emit(
+                    "auth-error",
+                    AuthError {
+                        message: e.to_string(),
+                    },
+                );
             }
         }
     });
